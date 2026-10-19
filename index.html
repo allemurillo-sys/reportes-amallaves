@@ -304,15 +304,26 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <div>Reporte enviado</div>
           <div class="num" id="n-num"></div>
           <div style="color:var(--muted);font-size:14px" id="n-fecha"></div>
-          <button class="btn" style="margin-top:18px" id="n-otro">Crear otro reporte</button>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px">
+            <button class="btn" id="n-otro">Crear otro reporte</button>
+            <button class="btn sec hidden" id="n-ver-estado">Ver estado de mis casos</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- MIS REPORTES (mucama) -->
+    <!-- ESTADO DE MIS CASOS (mucama) -->
     <section id="v-mis" class="view hidden">
-      <div class="view-title"><h2>Mis reportes</h2><button class="btn sec sm" id="b-mis-ref">⟳ Actualizar</button></div>
-      <div class="list" id="l-mis"></div>
+      <div class="form-wrap">
+        <div class="view-title"><h2>Estado de mis casos</h2><button class="btn sec sm" id="b-mis-ref">⟳ Actualizar</button></div>
+        <div class="stats" id="stats-mis"></div>
+        <div class="subtabs" id="mis-filtro">
+          <button data-mf="activos" class="on">En seguimiento</button>
+          <button data-mf="listo">Resueltos</button>
+          <button data-mf="todos">Todos</button>
+        </div>
+        <div class="list" id="l-mis"></div>
+      </div>
     </section>
 
     <!-- HISTORIAL -->
@@ -521,11 +532,14 @@ async function iniciar(){
 
   await Promise.all([cargarPerfiles(), cargarPropiedades()]);
   armarMenu();
+  $('#n-ver-estado').classList.toggle('hidden', perfil.rol !== 'mucama');
   if (perfil.rol === 'mucama') { irA('nuevo'); }
-  else { await cargarActivos(); irA('panel'); conectarTiempoReal(); }
+  else { await cargarActivos(); irA('panel'); }
+  conectarTiempoReal();
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
   if (perfil.rol !== 'mucama') S.intervalos.push(setInterval(cargarActivos, 60000));
+  else S.intervalos.push(setInterval(() => { if (S.vista === 'mis') cargarMis(true); }, 60000));
   S.intervalos.push(setInterval(() => { if (S.alertaId) beep(); }, 12000));
 }
 
@@ -561,7 +575,7 @@ async function cargarPropiedades(){
 function armarMenu(){
   const r = S.perfil.rol;
   const items = r === 'mucama'
-    ? [['nuevo','➕','Nuevo reporte'], ['mis','📋','Mis reportes']]
+    ? [['nuevo','➕','Nuevo reporte'], ['mis','📋','Estado de casos']]
     : [['panel','📊','Panel'], ['nuevo','➕','Nuevo reporte'], ['historial','🔎','Buscar casos']];
   if (r === 'admin' || r === 'ama_llaves') items.push(['mant','⚙️','Mantenimiento']);
   $('#menu').innerHTML = items.map(([v, ic, t]) => `<button data-vista="${v}"><span class="ic">${ic}</span>${t}</button>`).join('');
@@ -635,7 +649,11 @@ let recargaT;
 function conectarTiempoReal(){
   S.canal = sb.channel('reportes-cambios')
     .on('postgres_changes', { event:'*', schema:'public', table:'reportes' }, () => {
-      clearTimeout(recargaT); recargaT = setTimeout(cargarActivos, 500);
+      clearTimeout(recargaT);
+      recargaT = setTimeout(() => {
+        if (S.perfil && S.perfil.rol === 'mucama') { if (S.vista === 'mis') cargarMis(true); }
+        else cargarActivos();
+      }, 500);
     })
     .subscribe();
 }
@@ -954,12 +972,40 @@ $('#n-otro').addEventListener('click', () => { $('#n-exito').classList.add('hidd
 /* =====================================================================
    MIS REPORTES (mucama)
    ===================================================================== */
-async function cargarMis(){
-  $('#l-mis').innerHTML = '<div class="loading">Cargando…</div>';
-  const { data } = await sb.from('reportes').select('*').eq('creado_por', S.user.id).order('creado_en', { ascending:false }).limit(100);
-  $('#l-mis').innerHTML = (data && data.length) ? data.map(cardHTML).join('') : '<div class="card-box loading">Aún no ha enviado reportes</div>';
+S.misCasos = []; S.misFiltro = 'activos';
+async function cargarMis(silencioso){
+  if (!silencioso) $('#l-mis').innerHTML = '<div class="loading">Cargando…</div>';
+  const { data, error } = await sb.from('reportes').select('*').eq('creado_por', S.user.id)
+    .order('creado_en', { ascending:false }).limit(200);
+  if (error) { if (!silencioso) $('#l-mis').innerHTML = ''; return; }
+  S.misCasos = data || [];
+  pintarMis();
 }
-$('#b-mis-ref').addEventListener('click', cargarMis);
+function pintarMis(){
+  const c = e => S.misCasos.filter(r => r.estado === e).length;
+  const stats = [
+    ['Nuevos', c('nuevo'), 'var(--nuevo)'],
+    ['En proceso', c('en_proceso'), 'var(--proceso)'],
+    ['Revisado / Pendiente', c('revisado_pendiente'), 'var(--revisado)'],
+    ['Pendiente Admin', c('pendiente_admin'), 'var(--padmin)'],
+    ['Resueltos', c('listo'), 'var(--listo)']
+  ];
+  $('#stats-mis').innerHTML = stats.map(([l, n, col]) => `<div class="stat" style="--c:${col}"><b>${n}</b><span>${l}</span></div>`).join('');
+  const f = S.misFiltro;
+  const lista = S.misCasos.filter(r => f === 'todos' || (f === 'listo' ? r.estado === 'listo' : r.estado !== 'listo'));
+  const vacio = f === 'listo' ? 'Aún no hay casos resueltos' : f === 'activos' ? 'No tiene casos en seguimiento 👍' : 'Aún no ha enviado reportes';
+  $('#l-mis').innerHTML = lista.length ? lista.map(cardHTML).join('') : `<div class="card-box loading">${vacio}</div>`;
+}
+$('#mis-filtro').addEventListener('click', e => {
+  const b = e.target.closest('[data-mf]'); if (!b) return;
+  S.misFiltro = b.dataset.mf;
+  $$('#mis-filtro button').forEach(x => x.classList.toggle('on', x === b));
+  pintarMis();
+});
+$('#b-mis-ref').addEventListener('click', () => cargarMis());
+$('#n-ver-estado').addEventListener('click', () => {
+  $('#n-exito').classList.add('hidden'); $('#f-nuevo').classList.remove('hidden'); irA('mis');
+});
 
 /* =====================================================================
    HISTORIAL / BÚSQUEDA
