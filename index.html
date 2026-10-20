@@ -48,12 +48,13 @@ textarea.inp{min-height:120px;resize:vertical}
 .err{color:var(--alta);font-size:13px;margin-top:10px;min-height:18px}
 
 .seg{display:grid;gap:8px}
-.seg.c2{grid-template-columns:1fr 1fr} .seg.c3{grid-template-columns:1fr 1fr 1fr}
+.seg.c2{grid-template-columns:1fr 1fr} .seg.c3{grid-template-columns:1fr 1fr 1fr} .seg.c4{grid-template-columns:repeat(4,1fr)}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label{display:block;text-align:center;padding:12px 6px;border:2px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-weight:600;transition:all .15s}
 .seg input:checked + label{border-color:currentColor;background:var(--sel-bg,#eef3f3)}
 .seg input:focus-visible + label{outline:2px solid var(--brand-2);outline-offset:2px}
 .lbl-ama{color:var(--ama);--sel-bg:var(--ama-bg)} .lbl-ops{color:var(--ops);--sel-bg:var(--ops-bg)}
+.lbl-admin{color:#4b2f86;--sel-bg:#ece8f5} .lbl-mucama{color:#1f7a68;--sel-bg:#e6f4f1}
 .lbl-alta{color:var(--alta);--sel-bg:var(--alta-bg)} .lbl-media{color:var(--media);--sel-bg:var(--media-bg)} .lbl-baja{color:var(--baja);--sel-bg:var(--baja-bg)}
 
 /* ---------- Estructura ---------- */
@@ -104,6 +105,16 @@ main{max-width:1280px;margin:0 auto;padding:18px 16px 40px}
 .t-nuevo{background:var(--nuevo);color:#fff} .t-en_proceso{background:var(--proceso);color:#fff} .t-revisado_pendiente{background:var(--revisado);color:#fff}
 .t-pendiente_admin{background:var(--padmin);color:#fff} .t-listo{background:var(--listo);color:#fff}
 .t-sinabrir{background:#fff;border:1px dashed var(--nuevo);color:var(--nuevo)}
+.t-admin{background:#ece8f5;color:#4b2f86} .t-mucama{background:#e6f4f1;color:#1f7a68}
+.t-espera{background:#fff;border:1px dashed var(--proceso);color:var(--proceso)}
+.forzado-banner{background:var(--alta-bg);color:var(--alta);border:1px solid #f3c2bc;border-radius:10px;padding:10px 12px;font-weight:600;font-size:14px;margin-top:10px}
+.notif-item{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fff;padding:12px 4px;cursor:pointer}
+.notif-item.nueva{background:#fdf6ec}
+.notif-item .nc{font-weight:700;font-size:13px}
+.notif-item .nm{font-size:14px;margin-top:2px}
+.notif-item .nf{font-size:12px;color:var(--muted);margin-top:3px}
+.toast.notif{border-left-color:var(--brand-2)}
+.toast.notif .tt{color:var(--brand-2)}
 .cc-by{font-size:12px;color:var(--muted);margin-top:7px}
 .pri-alta{--pc:var(--alta)} .pri-media{--pc:var(--media)} .pri-baja{--pc:var(--baja)}
 
@@ -192,6 +203,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   main{padding:14px 12px 100px}
   .userbox .who{display:none}
   .stats{grid-template-columns:repeat(2,1fr)}
+  .seg.c4{grid-template-columns:1fr 1fr}
   .stat:first-child{grid-column:span 2}
   .overlay{padding:0;align-items:flex-end}
   .modal{border-radius:18px 18px 0 0;max-height:94vh;overflow-y:auto}
@@ -224,7 +236,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     <nav class="menu" id="menu"></nav>
     <div class="userbox">
       <div class="who"><b id="u-nombre"></b><br><small id="u-rol"></small></div>
-      <button class="icon-btn hidden" id="b-campana" title="Reportes nuevos sin abrir">🔔<span class="badge hidden" id="campana-n">0</span></button>
+      <button class="icon-btn" id="b-campana" title="Notificaciones">🔔<span class="badge hidden" id="campana-n">0</span></button>
       <button class="icon-btn" id="b-cuenta" title="Mi cuenta">👤</button>
     </div>
   </header>
@@ -240,6 +252,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <option value="todos">Todos los departamentos</option>
           <option value="ama_llaves">Ama de llaves</option>
           <option value="operaciones">Operaciones</option>
+          <option value="admin">Administración</option>
+          <option value="mucama">Dirigidos a mucamas</option>
+          <option value="mios">Reportes que yo creé</option>
         </select>
         <select class="inp" id="f-est">
           <option value="todos">Todos los estados activos</option>
@@ -283,9 +298,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <input type="file" id="n-file" accept="image/*" multiple class="hidden">
 
           <label class="f">Dirigido a</label>
-          <div class="seg c2">
-            <input type="radio" name="n-dep" id="d-ama" value="ama_llaves" required><label for="d-ama" class="lbl-ama">Ama de llaves</label>
-            <input type="radio" name="n-dep" id="d-ops" value="operaciones"><label for="d-ops" class="lbl-ops">Operaciones</label>
+          <div class="seg c2" id="n-destinos"></div>
+          <div id="n-asig-box" class="hidden">
+            <label class="f" for="n-asig">¿A cuál mucama?</label>
+            <select class="inp" id="n-asig"></select>
           </div>
 
           <label class="f">Prioridad</label>
@@ -319,6 +335,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         <div class="stats" id="stats-mis"></div>
         <div class="subtabs" id="mis-filtro">
           <button data-mf="activos" class="on">En seguimiento</button>
+          <button data-mf="asignados" id="mf-asignados">Asignados a mí</button>
           <button data-mf="listo">Resueltos</button>
           <button data-mf="todos">Todos</button>
         </div>
@@ -344,6 +361,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
             <option value="todos">Todos los departamentos</option>
             <option value="ama_llaves">Ama de llaves</option>
             <option value="operaciones">Operaciones</option>
+            <option value="admin">Administración</option>
+            <option value="mucama">Dirigidos a mucamas</option>
           </select>
           <select class="inp" id="h-prop"></select>
           <input class="inp" type="date" id="h-desde" title="Desde">
@@ -408,7 +427,9 @@ const DIA = 24 * 60 * 60 * 1000;
 const ROL = { admin:'Administrador', ama_llaves:'Ama de llaves', supervisora:'Supervisora', operaciones:'Operaciones', mucama:'Mucama' };
 // Departamento que atiende cada rol (la Supervisora trabaja en Ama de llaves)
 const depDe = rol => (rol === 'ama_llaves' || rol === 'supervisora') ? 'ama_llaves' : (rol === 'operaciones' ? 'operaciones' : null);
-const DEP = { ama_llaves:'Ama de llaves', operaciones:'Operaciones' };
+const DEP = { ama_llaves:'Ama de llaves', operaciones:'Operaciones', admin:'Administración', mucama:'Mucama' };
+const DEP_COLOR = { ama_llaves:'var(--ama)', operaciones:'var(--ops)', admin:'#4b2f86', mucama:'#1f7a68' };
+const depTxt = r => r.departamento === 'mucama' ? 'Mucama: ' + nombre(r.asignado_a) : DEP[r.departamento];
 const PRI = { alta:'Alta', media:'Media', baja:'Baja' };
 const EST = { nuevo:'Nuevo', en_proceso:'En proceso', revisado_pendiente:'Revisado / Pendiente', pendiente_admin:'Pendiente Admin', listo:'Listo' };
 
@@ -418,7 +439,7 @@ const sb = configurado ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
 const S = {
   user:null, perfil:null, perfiles:{}, propiedades:[], activos:[], offset:0,
   vista:null, canal:null, intervalos:[], alertaId:null, toastsVistos:new Set(),
-  fotosNuevas:[], mantTab:null, detalle:null
+  fotosNuevas:[], mantTab:null, detalle:null, forzadoId:null, notifs:[], canalN:null
 };
 
 /* ---------- utilidades ---------- */
@@ -449,10 +470,11 @@ function aviso(t, mal){
   clearTimeout(msgT); msgT = setTimeout(() => el.classList.add('hidden'), 3500);
 }
 function tagsHTML(r, sinEstado){
-  return `<span class="tag t-${r.departamento}">${DEP[r.departamento]}</span>
+  return `<span class="tag t-${r.departamento}">${esc(depTxt(r))}</span>
     <span class="tag t-${r.prioridad}">Prioridad ${PRI[r.prioridad]}</span>
     ${sinEstado ? '' : `<span class="tag t-${r.estado}">${EST[r.estado]}</span>`}
     ${r.estado === 'nuevo' && !r.abierto_en ? '<span class="tag t-sinabrir">Sin abrir</span>' : ''}
+    ${r.estado === 'nuevo' && r.abierto_en ? '<span class="tag t-espera">Abierto · sin respuesta</span>' : ''}
     ${r.fotos && r.fotos.length ? `<span class="tag">📷 ${r.fotos.length}</span>` : ''}`;
 }
 function timerHTML(r){
@@ -535,21 +557,23 @@ async function iniciar(){
   await Promise.all([cargarPerfiles(), cargarPropiedades()]);
   armarMenu();
   $('#n-ver-estado').classList.toggle('hidden', perfil.rol !== 'mucama');
-  if (perfil.rol === 'mucama') { irA('nuevo'); }
-  else { await cargarActivos(); irA('panel'); }
+  armarDestinos();
+  irA(perfil.rol === 'mucama' ? 'nuevo' : 'panel');
+  await Promise.all([cargarActivos(), cargarNotifs()]);
   conectarTiempoReal();
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
-  if (perfil.rol !== 'mucama') S.intervalos.push(setInterval(cargarActivos, 60000));
-  else S.intervalos.push(setInterval(() => { if (S.vista === 'mis') cargarMis(true); }, 60000));
+  S.intervalos.push(setInterval(() => { cargarActivos(); if (S.vista === 'mis') cargarMis(true); }, 60000));
   S.intervalos.push(setInterval(() => { if (S.alertaId) beep(); }, 12000));
 }
 
 function mostrarLogin(msg){
   S.intervalos.forEach(clearInterval); S.intervalos = [];
   if (S.canal) { sb.removeChannel(S.canal); S.canal = null; }
+  if (S.canalN) { sb.removeChannel(S.canalN); S.canalN = null; }
   S.alertaId = null; S.toastsVistos.clear(); $('#toasts').innerHTML = '';
-  $('#alerta').classList.add('hidden'); cerrarModal();
+  S.notifs = []; S.activos = [];
+  $('#alerta').classList.add('hidden'); cerrarModal(true);
   $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
   $('#l-err').textContent = msg || '';
   document.title = 'Reportes Ama de Llaves';
@@ -581,7 +605,6 @@ function armarMenu(){
     : [['panel','📊','Panel'], ['nuevo','➕','Nuevo reporte'], ['historial','🔎','Buscar casos']];
   if (r === 'admin' || r === 'ama_llaves') items.push(['mant','⚙️','Mantenimiento']);
   $('#menu').innerHTML = items.map(([v, ic, t]) => `<button data-vista="${v}"><span class="ic">${ic}</span>${t}</button>`).join('');
-  $('#b-campana').classList.toggle('hidden', r !== 'admin');
 }
 $('#menu').addEventListener('click', e => { const b = e.target.closest('[data-vista]'); if (b) irA(b.dataset.vista); });
 
@@ -601,7 +624,7 @@ function irA(v){
    PANEL DE SEGUIMIENTO
    ===================================================================== */
 async function cargarActivos(){
-  if (!S.perfil || S.perfil.rol === 'mucama') return;
+  if (!S.perfil) return;
   const { data, error } = await sb.from('reportes').select('*').neq('estado', 'listo').order('creado_en');
   if (error) return;
   S.activos = data || [];
@@ -611,8 +634,9 @@ async function cargarActivos(){
 
 function renderPanel(){
   const dep = $('#f-dep').value, est = $('#f-est').value, q = norm($('#f-q').value);
+  const depOk = r => dep === 'todos' || (dep === 'mios' ? r.creado_por === S.user.id : r.departamento === dep);
   const lista = S.activos.filter(r =>
-    (dep === 'todos' || r.departamento === dep) &&
+    depOk(r) &&
     (est === 'todos' || r.estado === est) &&
     (!q || norm(`${r.numero_caso} ${r.propiedad_nombre} ${r.descripcion}`).includes(q)));
 
@@ -632,7 +656,7 @@ function renderPanel(){
   pinta('altas', altas, 'Sin casos de prioridad alta');
   pinta('recientes', recientes, 'Sin casos recientes');
 
-  const base = S.activos.filter(r => dep === 'todos' || r.departamento === dep);
+  const base = S.activos.filter(depOk);
   const c = e => base.filter(r => r.estado === e).length;
   const stats = [
     ['Activos', base.length, 'var(--brand-2)'],
@@ -653,39 +677,62 @@ function conectarTiempoReal(){
     .on('postgres_changes', { event:'*', schema:'public', table:'reportes' }, () => {
       clearTimeout(recargaT);
       recargaT = setTimeout(() => {
-        if (S.perfil && S.perfil.rol === 'mucama') { if (S.vista === 'mis') cargarMis(true); }
-        else cargarActivos();
+        cargarActivos();
+        if (S.vista === 'mis') cargarMis(true);
       }, 500);
     })
+    .subscribe();
+  S.canalN = sb.channel('notif-' + S.user.id)
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'notificaciones', filter:'usuario_id=eq.' + S.user.id },
+        p => nuevaNotif(p.new))
     .subscribe();
 }
 
 /* =====================================================================
    ALERTAS DE REPORTE NUEVO
    ===================================================================== */
+// ¿Este reporte le corresponde atender al usuario conectado? (para la ventana de alerta)
+function esParaMi(r){
+  const rol = S.perfil.rol;
+  if (r.departamento === 'mucama') return rol === 'mucama' && r.asignado_a === S.user.id;
+  return !!depDe(rol) && depDe(rol) === r.departamento;
+}
 function revisarAlertas(){
   const rol = S.perfil.rol;
+  // 1) Caso que el usuario abrió pero todavía no respondió: debe responderlo obligatoriamente
+  const pendiente = S.activos.find(r => r.estado === 'nuevo' && r.abierto_en && r.abierto_por === S.user.id && puedeAtender(r));
+  if (pendiente) {
+    ocultarAlerta();
+    if (S.forzadoId !== pendiente.id) abrirDetalle(pendiente.id, true);
+    document.title = 'Responda el caso ' + pendiente.numero_caso;
+    if (rol !== 'admin') return;
+  } else if (S.forzadoId) {
+    const f = S.activos.find(r => r.id === S.forzadoId);
+    if (f && f.estado === 'nuevo' && !f.abierto_en) {
+      // Datos aún sin actualizar: se mantiene la ventana obligatoria
+      ocultarAlerta(); if (rol !== 'admin') return;
+    } else { S.forzadoId = null; cerrarModal(true); }
+  }
   const sinAbrir = S.activos.filter(r => r.estado === 'nuevo' && !r.abierto_en)
                             .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
-  if (depDe(rol)) {
-    const mios = sinAbrir.filter(r => r.departamento === depDe(rol));
+  if (rol !== 'admin') {
+    const mios = sinAbrir.filter(esParaMi);
     if (mios.length) mostrarAlerta(mios[0], mios.length); else ocultarAlerta();
     document.title = mios.length ? `(${mios.length}) Nuevo reporte` : 'Reportes Ama de Llaves';
-  } else if (rol === 'admin') {
+  } else {
     const ids = new Set(sinAbrir.map(r => r.id));
-    $$('#toasts .toast').forEach(t => { if (!ids.has(+t.dataset.id)) t.remove(); });
+    $$('#toasts .toast[data-tipo="nuevo"]').forEach(t => { if (!ids.has(+t.dataset.id)) t.remove(); });
     sinAbrir.forEach(r => { if (!S.toastsVistos.has(r.id)) { S.toastsVistos.add(r.id); toastAdmin(r); } });
     const n = sinAbrir.length;
-    $('#campana-n').textContent = n; $('#campana-n').classList.toggle('hidden', !n);
-    document.title = n ? `(${n}) Reportes sin abrir` : 'Reportes Ama de Llaves';
+    if (!pendiente) document.title = n ? `(${n}) Reportes sin abrir` : 'Reportes Ama de Llaves';
   }
 }
 
 function mostrarAlerta(r, total){
   const nueva = S.alertaId !== r.id;
   S.alertaId = r.id;
-  $('#al-head').style.background = r.departamento === 'operaciones' ? 'var(--ops)' : 'var(--ama)';
-  $('#al-para').textContent = 'Dirigido a: ' + DEP[r.departamento];
+  $('#al-head').style.background = DEP_COLOR[r.departamento];
+  $('#al-para').textContent = 'Dirigido a: ' + depTxt(r);
   $('#al-caso').textContent = r.numero_caso;
   $('#al-timer').innerHTML = '⏱ ' + duracion(ahora() - new Date(r.creado_en));
   $('#al-timer').dataset.desde = r.creado_en;
@@ -706,26 +753,78 @@ $('#al-abrir').addEventListener('click', async () => {
   b.disabled = false; b.textContent = 'Abrir caso';
   if (error) return aviso(errMsg(error), true);
   ocultarAlerta();
-  await cargarActivos();
-  abrirDetalle(id);
+  abrirDetalle(id, true);
+  cargarActivos();
 });
 
 function toastAdmin(r){
   const el = document.createElement('div');
-  el.className = 'toast'; el.dataset.id = r.id;
-  el.style.borderLeftColor = r.departamento === 'operaciones' ? 'var(--ops)' : 'var(--ama)';
-  el.innerHTML = `<div class="tt">🔔 Reporte nuevo · ${DEP[r.departamento]}</div>
+  el.className = 'toast'; el.dataset.id = r.id; el.dataset.tipo = 'nuevo';
+  el.style.borderLeftColor = DEP_COLOR[r.departamento];
+  el.innerHTML = `<div class="tt">🔔 Reporte nuevo · ${esc(depTxt(r))}</div>
     <div class="tb"><b>${esc(r.numero_caso)}</b> · ${esc(r.propiedad_nombre || '')}<br>
     <span style="color:var(--muted);font-size:13px">Prioridad ${PRI[r.prioridad]} · ${esc(nombre(r.creado_por))}</span></div>
-    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ver caso</button></div>`;
+    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Abrir caso</button></div>`;
   el.querySelector('[data-cerrar]').onclick = () => el.remove();
-  el.querySelector('[data-ver]').onclick = () => { el.remove(); abrirDetalle(r.id); };
+  el.querySelector('[data-ver]').onclick = async () => {
+    if (S.forzadoId) return aviso('Primero responda el caso que tiene abierto', true);
+    const { error } = await sb.rpc('abrir_caso', { p_id: r.id });
+    if (error) return aviso(errMsg(error), true);
+    el.remove(); abrirDetalle(r.id, true); cargarActivos();
+  };
   $('#toasts').prepend(el);
   beep();
 }
-$('#b-campana').addEventListener('click', () => {
-  $('#f-est').value = 'nuevo'; irA('panel');
-});
+/* =====================================================================
+   NOTIFICACIONES (cambios en los reportes que el usuario creó o tiene asignados)
+   ===================================================================== */
+async function cargarNotifs(){
+  const { data } = await sb.from('notificaciones').select('*').order('creado_en', { ascending:false }).limit(60);
+  S.notifs = data || [];
+  pintarCampana();
+}
+function pintarCampana(){
+  const n = S.notifs.filter(x => !x.leida).length;
+  $('#campana-n').textContent = n > 99 ? '99+' : n;
+  $('#campana-n').classList.toggle('hidden', !n);
+}
+function nuevaNotif(n){
+  if (!n || S.notifs.some(x => x.id === n.id)) return;
+  S.notifs.unshift(n); pintarCampana();
+  const el = document.createElement('div');
+  el.className = 'toast notif'; el.dataset.tipo = 'notif';
+  el.innerHTML = `<div class="tt">📬 Revise su reporte</div>
+    <div class="tb"><b>${esc(n.numero_caso)}</b> · ${esc(n.propiedad_nombre || '')}<br>
+    <span style="font-size:13px">${esc(n.mensaje)}</span></div>
+    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ver reporte</button></div>`;
+  el.querySelector('[data-cerrar]').onclick = () => el.remove();
+  el.querySelector('[data-ver]').onclick = () => { el.remove(); abrirNotif(n); };
+  $('#toasts').prepend(el);
+  beep();
+}
+async function abrirNotif(n){
+  if (S.forzadoId) return aviso('Primero responda el caso que tiene abierto', true);
+  if (!n.leida) { n.leida = true; pintarCampana(); sb.rpc('marcar_leidas', { p_ids:[n.id] }); }
+  abrirDetalle(n.reporte_id);
+}
+function verNotifs(){
+  const items = S.notifs.map(n => `<button class="notif-item ${n.leida ? '' : 'nueva'}" data-notif="${n.id}">
+      <div class="nc">${n.leida ? '' : '● '}${esc(n.numero_caso)} · ${esc(n.propiedad_nombre || '')}</div>
+      <div class="nm">${esc(n.mensaje)}</div>
+      <div class="nf">${fecha(n.creado_en)}</div></button>`).join('');
+  const ok = abrirModal(`<div class="m-head"><div><h3>Notificaciones</h3>
+      <div style="color:var(--muted);font-size:13px">Cambios en los reportes que usted creó o tiene asignados</div></div>
+      <button class="x" data-x aria-label="Cerrar">✕</button></div>
+    <div class="m-body">
+      ${S.notifs.some(n => !n.leida) ? '<button class="btn sec sm" id="nt-todas" style="margin-bottom:8px">✔ Marcar todas como leídas</button>' : ''}
+      ${items || '<div class="loading">No tiene notificaciones</div>'}
+    </div>`, true);
+  if (!ok) return;
+  $$('[data-notif]').forEach(b => b.onclick = () => abrirNotif(S.notifs.find(n => n.id === +b.dataset.notif)));
+  const t = $('#nt-todas');
+  if (t) t.onclick = async () => { await sb.rpc('marcar_leidas', { p_ids:null }); S.notifs.forEach(n => n.leida = true); pintarCampana(); verNotifs(); };
+}
+$('#b-campana').addEventListener('click', verNotifs);
 
 /* =====================================================================
    DETALLE DEL CASO Y SEGUIMIENTO
@@ -735,21 +834,27 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const c = e.target.closest && e.target.closest('[data-caso]'); if (c) abrirDetalle(+c.dataset.caso); }
-  if (e.key === 'Escape' && !$('#modal').classList.contains('hidden')) cerrarModal();
+  if (e.key === 'Escape' && !$('#modal').classList.contains('hidden') && !S.forzadoId) cerrarModal();
 });
 
-function abrirModal(html, chico){
+function abrirModal(html, chico, esDetalle){
+  if (S.forzadoId && !esDetalle) { aviso('Primero responda el caso que tiene abierto', true); return false; }
   $('#modal-box').className = 'modal' + (chico ? ' sm' : '');
   $('#modal-box').innerHTML = html;
   $('#modal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  return true;
 }
-function cerrarModal(){ $('#modal').classList.add('hidden'); $('#modal-box').innerHTML = ''; document.body.style.overflow = ''; S.detalle = null; }
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' || e.target.closest('[data-x]')) cerrarModal(); });
+function cerrarModal(forzar){
+  if (S.forzadoId && !forzar) return;
+  if (forzar) S.forzadoId = null;
+  $('#modal').classList.add('hidden'); $('#modal-box').innerHTML = ''; document.body.style.overflow = ''; S.detalle = null;
+}
+$('#modal').addEventListener('click', e => { if (!S.forzadoId && (e.target.id === 'modal' || e.target.closest('[data-x]'))) cerrarModal(); });
 
 const ACC = {
   listo:       { t:'Marcar como Listo', est:'listo', cls:'ok', campos:[['comentario','¿Qué se hizo para resolverlo?', true]] },
-  en_proceso:  { t:'Pasar a En Proceso', est:'en_proceso', cls:'warn', campos:[['comentario','Comentario (opcional): qué se está haciendo', false]] },
+  en_proceso:  { t:'En Proceso', est:'en_proceso', cls:'warn', campos:[['comentario','Comentario (opcional): qué se está haciendo', false]] },
   revisado_pendiente: { t:'Revisado / Pendiente', est:'revisado_pendiente', cls:'orange', campos:[['razon','¿Por qué no se pudo resolver?', true], ['solucion','Posible solución', true]] },
   pendiente_admin: { t:'Enviar a Pendiente Admin', est:'pendiente_admin', cls:'purple', campos:[['razon','¿Por qué no se puede resolver?', true], ['solucion','Sugerencia para el administrador (opcional)', false]] },
   reabrir:     { t:'Reabrir caso', est:'en_proceso', cls:'warn', campos:[['comentario','Motivo para reabrir', true]] },
@@ -759,16 +864,22 @@ const ACC = {
 function puedeAtender(r){
   const rol = S.perfil.rol;
   if (rol === 'admin') return true;
-  return depDe(rol) === r.departamento && r.estado !== 'pendiente_admin' && r.estado !== 'listo';
+  const mio = r.departamento === 'mucama' ? r.asignado_a === S.user.id : depDe(rol) === r.departamento;
+  return mio && r.estado !== 'pendiente_admin' && r.estado !== 'listo';
 }
 
-async function abrirDetalle(id){
-  abrirModal('<div class="loading">Cargando caso…</div>');
+async function abrirDetalle(id, forzado){
+  if (S.forzadoId && S.forzadoId !== id) return aviso('Primero responda el caso que tiene abierto', true);
+  if (forzado) S.forzadoId = id;
+  abrirModal('<div class="loading">Cargando caso…</div>', false, true);
   const [{ data:r, error }, { data:bit }] = await Promise.all([
     sb.from('reportes').select('*').eq('id', id).single(),
     sb.from('bitacora').select('*').eq('reporte_id', id).order('creado_en')
   ]);
-  if (error || !r) { cerrarModal(); return aviso('No se pudo cargar el caso', true); }
+  if (error || !r) { cerrarModal(true); return aviso('No se pudo cargar el caso', true); }
+  // Solo se obliga a responder mientras el caso siga "Nuevo" y lo pueda atender
+  if (forzado && !(r.estado === 'nuevo' && puedeAtender(r))) { S.forzadoId = null; forzado = false; }
+  if (S.forzadoId === id) forzado = true;
   S.detalle = r;
 
   let fotosHTML = '';
@@ -780,21 +891,24 @@ async function abrirDetalle(id){
 
   const rol = S.perfil.rol, botones = [];
   if (puedeAtender(r)) {
-    if (r.estado !== 'listo') {
-      botones.push('listo');
-      if (['nuevo', 'revisado_pendiente', 'pendiente_admin'].includes(r.estado)) botones.push('en_proceso');
-      if (r.estado === 'en_proceso') botones.push('revisado_pendiente');
-      if (r.estado !== 'pendiente_admin') botones.push('pendiente_admin');
-    } else if (rol === 'admin') botones.push('reabrir');
+    if (forzado) botones.push('listo', 'en_proceso', 'pendiente_admin');
+    else if (r.estado !== 'listo')
+      ['listo', 'en_proceso', 'revisado_pendiente', 'pendiente_admin'].forEach(e => { if (e !== r.estado) botones.push(e); });
+    else if (rol === 'admin') botones.push('reabrir');
   }
-  if (rol !== 'mucama') botones.push('nota');
+  if (!forzado && (rol !== 'mucama' || puedeAtender(r))) botones.push('nota');
   const reclasif = puedeAtender(r) && r.estado !== 'listo';
 
   let aviso2 = '';
-  if (rol !== 'admin' && rol !== 'mucama' && depDe(rol) !== r.departamento)
-    aviso2 = `<div class="auto-note">ℹ️ Este caso es de ${DEP[r.departamento]}; usted puede verlo y agregar notas.</div>`;
-  if (rol !== 'admin' && r.estado === 'pendiente_admin' && depDe(rol) === r.departamento)
+  const mioDep = r.departamento === 'mucama' ? r.asignado_a === S.user.id : depDe(rol) === r.departamento;
+  if (rol !== 'admin' && rol !== 'mucama' && !mioDep)
+    aviso2 = `<div class="auto-note">ℹ️ Este caso es de ${esc(depTxt(r))}; usted puede verlo y agregar notas.</div>`;
+  if (rol !== 'admin' && r.estado === 'pendiente_admin' && mioDep)
     aviso2 = `<div class="auto-note">ℹ️ Caso escalado: está en manos de los administradores.</div>`;
+  if (r.estado !== 'listo' && !forzado)
+    aviso2 += `<div class="auto-note">⏳ Caso activo: permanece pendiente hasta que se marque como <b>Listo</b>.</div>`;
+  if (forzado)
+    aviso2 = `<div class="forzado-banner">⚠️ Usted abrió este caso. Para continuar debe darle una respuesta: <b>Listo</b>, <b>En Proceso</b> o <b>Pendiente Admin</b> (o reclasificarlo si no le corresponde).</div>`;
 
   abrirModal(`
     <div class="m-head">
@@ -803,13 +917,14 @@ async function abrirDetalle(id){
         <h3 style="font-size:20px;margin-top:2px">${esc(r.propiedad_nombre || '—')}</h3>
         <div class="tags">${tagsHTML(r)}</div>
       </div>
-      <button class="x" data-x aria-label="Cerrar">✕</button>
+      ${forzado ? '' : '<button class="x" data-x aria-label="Cerrar">✕</button>'}
     </div>
     <div class="m-body">
       <div class="det-grid">
         <div><small>Reportado</small>${fecha(r.creado_en)}</div>
         <div><small>${r.estado === 'listo' ? 'Tiempo de resolución' : 'Tiempo transcurrido'}</small>${timerHTML(r)}</div>
         <div><small>Reportó</small>${esc(nombre(r.creado_por))}</div>
+        <div><small>Dirigido a</small>${esc(depTxt(r))}</div>
         <div><small>Abierto por</small>${r.abierto_en ? esc(nombre(r.abierto_por)) + '<br><span class="timer">' + fecha(r.abierto_en) + '</span>' : '—'}</div>
         ${r.cerrado_en ? `<div><small>Cerrado por</small>${esc(nombre(r.cerrado_por))}<br><span class="timer">${fecha(r.cerrado_en)}</span></div>` : ''}
       </div>
@@ -825,7 +940,8 @@ async function abrirDetalle(id){
         <div id="acc-form"></div>` : ''}
       <div class="sec-t">Bitácora</div>
       <ul class="timeline">${(bit || []).map(bitHTML).join('')}</ul>
-    </div>`);
+    </div>`, false, true);
+  if (forzado) { const a = $('#modal-box .acciones'); if (a) a.scrollIntoView({ block:'center' }); }
 
   $$('#modal-box [data-acc]').forEach(b => b.onclick = () => formAccion(b.dataset.acc, r));
 }
@@ -850,7 +966,11 @@ function formAccion(tipo, r){
     box.innerHTML = `<form class="acc-form" id="fa">
       <b>Reclasificar caso</b>
       <label class="f">Dirigido a</label>
-      <select class="inp" id="fa-dep">${Object.entries(DEP).map(([k, v]) => `<option value="${k}" ${k === r.departamento ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="inp" id="fa-dep">${Object.entries(DEP).map(([k, v]) => `<option value="${k}" ${k === r.departamento ? 'selected' : ''}>${k === 'mucama' ? 'Una mucama específica' : v}</option>`).join('')}</select>
+      <div id="fa-asig-box" class="${r.departamento === 'mucama' ? '' : 'hidden'}">
+        <label class="f">¿A cuál mucama?</label>
+        <select class="inp" id="fa-asig">${opcionesMucamas(r.asignado_a)}</select>
+      </div>
       <label class="f">Prioridad</label>
       <select class="inp" id="fa-pri">${Object.entries(PRI).map(([k, v]) => `<option value="${k}" ${k === r.prioridad ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <label class="f">Motivo</label>
@@ -867,6 +987,7 @@ function formAccion(tipo, r){
     </form>`;
   }
   box.querySelector('[data-cancel]').onclick = () => box.innerHTML = '';
+  if ($('#fa-dep')) $('#fa-dep').onchange = () => $('#fa-asig-box').classList.toggle('hidden', $('#fa-dep').value !== 'mucama');
   box.querySelector('textarea').focus();
   box.scrollIntoView({ behavior:'smooth', block:'nearest' });
 
@@ -875,7 +996,10 @@ function formAccion(tipo, r){
     const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
     let res;
     if (tipo === 'reclasificar') {
-      res = await sb.rpc('reclasificar', { p_id:r.id, p_departamento:$('#fa-dep').value, p_prioridad:$('#fa-pri').value, p_motivo:$('#fa-motivo').value });
+      const dep = $('#fa-dep').value;
+      if (dep === 'mucama' && !$('#fa-asig').value) { btn.disabled = false; $('#fa-err').textContent = 'Seleccione la mucama'; return; }
+      res = await sb.rpc('reclasificar', { p_id:r.id, p_departamento:dep, p_prioridad:$('#fa-pri').value,
+        p_motivo:$('#fa-motivo').value, p_asignado: dep === 'mucama' ? $('#fa-asig').value : null });
     } else {
       const v = k => (box.querySelector(`[data-campo="${k}"]`) || {}).value || null;
       res = ACC[tipo].nota
@@ -885,8 +1009,10 @@ function formAccion(tipo, r){
     btn.disabled = false;
     if (res.error) { $('#fa-err').textContent = errMsg(res.error); return; }
     aviso('Caso actualizado');
+    // Una nota no cuenta como respuesta; cualquier cambio de estado o reclasificación sí
+    if (S.forzadoId === r.id && !ACC[tipo]?.nota) S.forzadoId = null;
     await cargarActivos();
-    if (S.vista === 'mis') cargarMis();
+    if (S.vista === 'mis') cargarMis(true);
     if (S.vista === 'historial') buscarHistorial();
     abrirDetalle(r.id);
   };
@@ -895,6 +1021,26 @@ function formAccion(tipo, r){
 /* =====================================================================
    NUEVO REPORTE
    ===================================================================== */
+function opcionesMucamas(sel){
+  const m = Object.values(S.perfiles).filter(p => p.rol === 'mucama' && p.activo).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  return '<option value="">— Seleccione la mucama —</option>' +
+    m.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
+}
+function armarDestinos(){
+  const amplio = ['operaciones', 'admin'].includes(S.perfil.rol);
+  const ops = amplio
+    ? [['ama_llaves','Ama de llaves','ama'], ['operaciones','Operaciones','ops'], ['mucama','Una mucama','mucama'], ['admin','Administración','admin']]
+    : [['ama_llaves','Ama de llaves','ama'], ['operaciones','Operaciones','ops']];
+  $('#n-destinos').className = 'seg ' + (ops.length === 4 ? 'c4' : 'c2');
+  $('#n-destinos').innerHTML = ops.map(([v, t, c], i) =>
+    `<input type="radio" name="n-dep" id="d-${v}" value="${v}" ${i === 0 ? 'required' : ''}><label for="d-${v}" class="lbl-${c}">${t}</label>`).join('');
+  $('#n-asig').innerHTML = opcionesMucamas();
+  $('#n-asig-box').classList.add('hidden');
+}
+$('#n-destinos').addEventListener('change', () => {
+  const d = document.querySelector('[name=n-dep]:checked');
+  $('#n-asig-box').classList.toggle('hidden', !d || d.value !== 'mucama');
+});
 $('#n-file').addEventListener('change', e => {
   const files = [...e.target.files];
   for (const f of files) {
@@ -935,7 +1081,8 @@ $('#f-nuevo').addEventListener('submit', async e => {
   const dep = document.querySelector('[name=n-dep]:checked'), pri = document.querySelector('[name=n-pri]:checked');
   if (!$('#n-prop').value) return err.textContent = 'Seleccione la propiedad';
   if (!$('#n-desc').value.trim()) return err.textContent = 'Escriba el reporte';
-  if (!dep) return err.textContent = 'Indique si va dirigido a Ama de llaves u Operaciones';
+  if (!dep) return err.textContent = 'Indique a quién va dirigido el reporte';
+  if (dep.value === 'mucama' && !$('#n-asig').value) return err.textContent = 'Seleccione la mucama a la que va dirigido';
   if (!pri) return err.textContent = 'Seleccione la prioridad';
 
   const btn = $('#n-btn'); btn.disabled = true;
@@ -953,14 +1100,15 @@ $('#f-nuevo').addEventListener('submit', async e => {
     btn.textContent = 'Enviando…';
     const { data, error } = await sb.from('reportes').insert({
       propiedad_id: +$('#n-prop').value, descripcion: $('#n-desc').value.trim(),
-      departamento: dep.value, prioridad: pri.value, fotos: paths
+      departamento: dep.value, prioridad: pri.value, fotos: paths,
+      asignado_a: dep.value === 'mucama' ? $('#n-asig').value : null
     }).select().single();
     if (error) throw error;
 
     $('#n-num').textContent = data.numero_caso;
     $('#n-fecha').textContent = 'Registrado el ' + fecha(data.creado_en);
     $('#f-nuevo').classList.add('hidden'); $('#n-exito').classList.remove('hidden');
-    $('#f-nuevo').reset();
+    $('#f-nuevo').reset(); $('#n-asig-box').classList.add('hidden');
     S.fotosNuevas.forEach(f => URL.revokeObjectURL(f.url)); S.fotosNuevas = []; pintarFotos();
     cargarActivos();
   } catch (ex) {
@@ -977,7 +1125,8 @@ $('#n-otro').addEventListener('click', () => { $('#n-exito').classList.add('hidd
 S.misCasos = []; S.misFiltro = 'activos';
 async function cargarMis(silencioso){
   if (!silencioso) $('#l-mis').innerHTML = '<div class="loading">Cargando…</div>';
-  const { data, error } = await sb.from('reportes').select('*').eq('creado_por', S.user.id)
+  const { data, error } = await sb.from('reportes').select('*')
+    .or(`creado_por.eq.${S.user.id},asignado_a.eq.${S.user.id}`)
     .order('creado_en', { ascending:false }).limit(200);
   if (error) { if (!silencioso) $('#l-mis').innerHTML = ''; return; }
   S.misCasos = data || [];
@@ -994,8 +1143,10 @@ function pintarMis(){
   ];
   $('#stats-mis').innerHTML = stats.map(([l, n, col]) => `<div class="stat" style="--c:${col}"><b>${n}</b><span>${l}</span></div>`).join('');
   const f = S.misFiltro;
-  const lista = S.misCasos.filter(r => f === 'todos' || (f === 'listo' ? r.estado === 'listo' : r.estado !== 'listo'));
-  const vacio = f === 'listo' ? 'Aún no hay casos resueltos' : f === 'activos' ? 'No tiene casos en seguimiento 👍' : 'Aún no ha enviado reportes';
+  const lista = S.misCasos.filter(r => f === 'todos' || (f === 'listo' ? r.estado === 'listo'
+    : f === 'asignados' ? r.asignado_a === S.user.id : r.estado !== 'listo'));
+  const vacio = f === 'listo' ? 'Aún no hay casos resueltos' : f === 'activos' ? 'No tiene casos en seguimiento 👍'
+    : f === 'asignados' ? 'No tiene reportes asignados' : 'Aún no ha enviado reportes';
   $('#l-mis').innerHTML = lista.length ? lista.map(cardHTML).join('') : `<div class="card-box loading">${vacio}</div>`;
 }
 $('#mis-filtro').addEventListener('click', e => {
@@ -1103,6 +1254,10 @@ const PERMISOS = [
   ['Ver el panel con todos los reportes',              1, 1, 1, 1, 0],
   ['Recibir alerta de reportes de Ama de llaves',      0, 1, 1, 0, 0],
   ['Recibir alerta de reportes de Operaciones',        0, 0, 0, 1, 0],
+  ['Recibir alerta de reportes asignados a ella',      0, 0, 0, 0, 1],
+  ['Dirigir reportes a una mucama o a Administración', 1, 0, 0, 1, 0],
+  ['Atender los reportes que le asignan',              1, 0, 0, 0, 1],
+  ['Notificación de cambios en sus reportes',          1, 1, 1, 1, 1],
   ['Aviso de todos los reportes nuevos (ambos)',       1, 0, 0, 0, 0],
   ['Atender casos de Ama de llaves',                   1, 1, 1, 0, 0],
   ['Atender casos de Operaciones',                     1, 0, 0, 1, 0],
@@ -1246,7 +1401,7 @@ async function exportarExcel(){
 
     const hojaRep = reps.map(r => ({
       'Caso': r.numero_caso, 'Fecha y hora': f(r.creado_en), 'Propiedad': r.propiedad_nombre,
-      'Dirigido a': DEP[r.departamento], 'Prioridad': PRI[r.prioridad], 'Estado': EST[r.estado],
+      'Dirigido a': depTxt(r), 'Prioridad': PRI[r.prioridad], 'Estado': EST[r.estado],
       'Reporte': r.descripcion, 'Reportado por': nombre(r.creado_por),
       'Abierto por': r.abierto_por ? nombre(r.abierto_por) : '', 'Abierto el': f(r.abierto_en),
       'Cerrado por': r.cerrado_por ? nombre(r.cerrado_por) : '', 'Cerrado el': f(r.cerrado_en),
