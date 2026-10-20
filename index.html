@@ -405,7 +405,9 @@ const TZ      = 'America/Costa_Rica';
 const MAX_FOTOS = 8;
 const DIA = 24 * 60 * 60 * 1000;
 
-const ROL = { admin:'Administrador', ama_llaves:'Ama de llaves', operaciones:'Operaciones', mucama:'Mucama' };
+const ROL = { admin:'Administrador', ama_llaves:'Ama de llaves', supervisora:'Supervisora', operaciones:'Operaciones', mucama:'Mucama' };
+// Departamento que atiende cada rol (la Supervisora trabaja en Ama de llaves)
+const depDe = rol => (rol === 'ama_llaves' || rol === 'supervisora') ? 'ama_llaves' : (rol === 'operaciones' ? 'operaciones' : null);
 const DEP = { ama_llaves:'Ama de llaves', operaciones:'Operaciones' };
 const PRI = { alta:'Alta', media:'Media', baja:'Baja' };
 const EST = { nuevo:'Nuevo', en_proceso:'En proceso', revisado_pendiente:'Revisado / Pendiente', pendiente_admin:'Pendiente Admin', listo:'Listo' };
@@ -665,8 +667,8 @@ function revisarAlertas(){
   const rol = S.perfil.rol;
   const sinAbrir = S.activos.filter(r => r.estado === 'nuevo' && !r.abierto_en)
                             .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
-  if (rol === 'ama_llaves' || rol === 'operaciones') {
-    const mios = sinAbrir.filter(r => r.departamento === rol);
+  if (depDe(rol)) {
+    const mios = sinAbrir.filter(r => r.departamento === depDe(rol));
     if (mios.length) mostrarAlerta(mios[0], mios.length); else ocultarAlerta();
     document.title = mios.length ? `(${mios.length}) Nuevo reporte` : 'Reportes Ama de Llaves';
   } else if (rol === 'admin') {
@@ -757,7 +759,7 @@ const ACC = {
 function puedeAtender(r){
   const rol = S.perfil.rol;
   if (rol === 'admin') return true;
-  return rol === r.departamento && r.estado !== 'pendiente_admin' && r.estado !== 'listo';
+  return depDe(rol) === r.departamento && r.estado !== 'pendiente_admin' && r.estado !== 'listo';
 }
 
 async function abrirDetalle(id){
@@ -789,9 +791,9 @@ async function abrirDetalle(id){
   const reclasif = puedeAtender(r) && r.estado !== 'listo';
 
   let aviso2 = '';
-  if (rol !== 'admin' && rol !== 'mucama' && rol !== r.departamento)
+  if (rol !== 'admin' && rol !== 'mucama' && depDe(rol) !== r.departamento)
     aviso2 = `<div class="auto-note">ℹ️ Este caso es de ${DEP[r.departamento]}; usted puede verlo y agregar notas.</div>`;
-  if (rol !== 'admin' && r.estado === 'pendiente_admin' && rol === r.departamento)
+  if (rol !== 'admin' && r.estado === 'pendiente_admin' && depDe(rol) === r.departamento)
     aviso2 = `<div class="auto-note">ℹ️ Caso escalado: está en manos de los administradores.</div>`;
 
   abrirModal(`
@@ -1095,28 +1097,29 @@ function formUsuario(p){
 
 /* ---------- Autorizaciones ---------- */
 const PERMISOS = [
-  ['Crear reportes',                                   1, 1, 1, 1],
-  ['Ver sus propios reportes',                         1, 1, 1, 1],
-  ['Ver el panel con todos los reportes',              1, 1, 1, 0],
-  ['Recibir alerta de reportes de Ama de llaves',      0, 1, 0, 0],
-  ['Recibir alerta de reportes de Operaciones',        0, 0, 1, 0],
-  ['Aviso de todos los reportes nuevos (ambos)',       1, 0, 0, 0],
-  ['Atender casos de Ama de llaves',                   1, 1, 0, 0],
-  ['Atender casos de Operaciones',                     1, 0, 1, 0],
-  ['Atender casos en Pendiente Admin / reabrir',       1, 0, 0, 0],
-  ['Agregar notas a cualquier caso',                   1, 1, 1, 0],
-  ['Buscar casos resueltos',                           1, 1, 1, 0],
-  ['Crear y modificar propiedades',                    1, 1, 0, 0],
-  ['Eliminar propiedades',                             1, 0, 0, 0],
-  ['Usuarios y autorizaciones',                        1, 0, 0, 0],
-  ['Descargar respaldo en Excel',                      1, 0, 0, 0]
+  //                                                  Admin Ama  Sup  Ops  Mucama
+  ['Crear reportes',                                   1, 1, 1, 1, 1],
+  ['Ver sus propios reportes',                         1, 1, 1, 1, 1],
+  ['Ver el panel con todos los reportes',              1, 1, 1, 1, 0],
+  ['Recibir alerta de reportes de Ama de llaves',      0, 1, 1, 0, 0],
+  ['Recibir alerta de reportes de Operaciones',        0, 0, 0, 1, 0],
+  ['Aviso de todos los reportes nuevos (ambos)',       1, 0, 0, 0, 0],
+  ['Atender casos de Ama de llaves',                   1, 1, 1, 0, 0],
+  ['Atender casos de Operaciones',                     1, 0, 0, 1, 0],
+  ['Atender casos en Pendiente Admin / reabrir',       1, 0, 0, 0, 0],
+  ['Agregar notas a cualquier caso',                   1, 1, 1, 1, 0],
+  ['Buscar casos resueltos',                           1, 1, 1, 1, 0],
+  ['Crear y modificar propiedades',                    1, 1, 0, 0, 0],
+  ['Eliminar propiedades',                             1, 0, 0, 0, 0],
+  ['Usuarios y autorizaciones',                        1, 0, 0, 0, 0],
+  ['Descargar respaldo en Excel',                      1, 0, 0, 0, 0]
 ];
 async function mAutorizaciones(){
   await cargarPerfiles();
   const lista = Object.values(S.perfiles).sort((a, b) => a.nombre.localeCompare(b.nombre));
   $('#mant-body').innerHTML = `
     <h3>Accesos por rol</h3>
-    <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Permiso</th><th>Administrador</th><th>Ama de llaves</th><th>Operaciones</th><th>Mucama</th></tr></thead><tbody>
+    <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Permiso</th><th>Administrador</th><th>Ama de llaves</th><th>Supervisora</th><th>Operaciones</th><th>Mucama</th></tr></thead><tbody>
       ${PERMISOS.map(([t, ...v]) => `<tr><td>${t}</td>${v.map(x => x ? '<td class="yes">✔</td>' : '<td class="no">—</td>').join('')}</tr>`).join('')}
     </tbody></table></div>
     <h3>Asignar rol a cada usuario</h3>
