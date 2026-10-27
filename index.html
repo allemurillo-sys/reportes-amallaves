@@ -14,7 +14,7 @@
   --bg:#f4f2ee; --panel:#ffffff; --ink:#1d2426; --muted:#6b7378; --line:#e3e0da;
   --brand:#1f3a3d; --brand-2:#2f5a5e; --accent:#c8873a;
   --alta:#c0392b; --alta-bg:#fdecea; --media:#b7791f; --media-bg:#fdf4e3; --baja:#2f855a; --baja-bg:#e8f5ee;
-  --ama:#7a4fa3; --ama-bg:#f2ecf8; --ops:#1f6fb2; --ops-bg:#e7f1fa;
+  --ama:#7a4fa3; --ama-bg:#f2ecf8; --ops:#1f6fb2; --ops-bg:#e7f1fa; --sup:#a3466f; --sup-bg:#f9ebf1;
   --nuevo:#c0392b; --proceso:#b7791f; --revisado:#d0661f; --padmin:#6b3fa0; --listo:#2f855a;
   --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.05);
 }
@@ -49,11 +49,12 @@ textarea.inp{min-height:120px;resize:vertical}
 
 .seg{display:grid;gap:8px}
 .seg.c2{grid-template-columns:1fr 1fr} .seg.c3{grid-template-columns:1fr 1fr 1fr} .seg.c4{grid-template-columns:repeat(4,1fr)}
+.seg.c5{grid-template-columns:repeat(6,1fr)} .seg.c5 label{grid-column:span 2} .seg.c5 label:nth-of-type(4){grid-column:2 / span 2}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label{display:block;text-align:center;padding:12px 6px;border:2px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-weight:600;transition:all .15s}
 .seg input:checked + label{border-color:currentColor;background:var(--sel-bg,#eef3f3)}
 .seg input:focus-visible + label{outline:2px solid var(--brand-2);outline-offset:2px}
-.lbl-ama{color:var(--ama);--sel-bg:var(--ama-bg)} .lbl-ops{color:var(--ops);--sel-bg:var(--ops-bg)}
+.lbl-ama{color:var(--ama);--sel-bg:var(--ama-bg)} .lbl-ops{color:var(--ops);--sel-bg:var(--ops-bg)} .lbl-sup{color:var(--sup);--sel-bg:var(--sup-bg)}
 .lbl-admin{color:#4b2f86;--sel-bg:#ece8f5} .lbl-mucama{color:#1f7a68;--sel-bg:#e6f4f1}
 .lbl-alta{color:var(--alta);--sel-bg:var(--alta-bg)} .lbl-media{color:var(--media);--sel-bg:var(--media-bg)} .lbl-baja{color:var(--baja);--sel-bg:var(--baja-bg)}
 
@@ -100,7 +101,9 @@ main{max-width:1280px;margin:0 auto;padding:18px 16px 40px}
 .cc-desc{color:#40484c;font-size:14px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;background:#eee;color:#555;white-space:nowrap}
-.t-ama_llaves{background:var(--ama-bg);color:var(--ama)} .t-operaciones{background:var(--ops-bg);color:var(--ops)}
+.t-ama_llaves{background:var(--ama-bg);color:var(--ama)} .t-operaciones{background:var(--ops-bg);color:var(--ops)} .t-supervisora{background:var(--sup-bg);color:var(--sup)}
+.t-visto{background:#f0eeea;color:var(--muted)}
+.pick-solo{font-size:14px;padding:4px 2px}
 .t-alta{background:var(--alta-bg);color:var(--alta)} .t-media{background:var(--media-bg);color:var(--media)} .t-baja{background:var(--baja-bg);color:var(--baja)}
 .t-nuevo{background:var(--nuevo);color:#fff} .t-en_proceso{background:var(--proceso);color:#fff} .t-revisado_pendiente{background:var(--revisado);color:#fff}
 .t-pendiente_admin{background:var(--padmin);color:#fff} .t-listo{background:var(--listo);color:#fff}
@@ -127,6 +130,16 @@ main{max-width:1280px;margin:0 auto;padding:18px 16px 40px}
 .foto button{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:99px;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
 .add-foto{aspect-ratio:1;border:2px dashed var(--line);border-radius:10px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;background:#fff}
 .add-foto span{font-size:26px;display:block}
+.pick{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px;background:#fff}
+.pick-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.pick-h b{font-size:14px}
+.pick-n{font-size:12px;color:var(--muted);font-weight:600;margin-right:auto}
+.pick-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px}
+.pick-it{display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:9px;cursor:pointer}
+.pick-it:hover{background:#f4f2ee}
+.pick-it input{width:20px;height:20px;accent-color:var(--brand-2);flex:none;margin:0}
+.pick-it .tag{margin-left:auto}
+.pick-empty{color:var(--muted);font-size:13px;padding:8px}
 .exito{text-align:center;padding:30px 10px}
 .exito .num{font-size:30px;font-weight:700;color:var(--brand);margin:8px 0}
 
@@ -204,6 +217,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   .userbox .who{display:none}
   .stats{grid-template-columns:repeat(2,1fr)}
   .seg.c4{grid-template-columns:1fr 1fr}
+  .seg.c5{grid-template-columns:1fr 1fr} .seg.c5 label{grid-column:auto} .seg.c5 label:nth-of-type(4){grid-column:auto} .seg.c5 label:nth-of-type(5){grid-column:span 2}
   .stat:first-child{grid-column:span 2}
   .overlay{padding:0;align-items:flex-end}
   .modal{border-radius:18px 18px 0 0;max-height:94vh;overflow-y:auto}
@@ -236,6 +250,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     <nav class="menu" id="menu"></nav>
     <div class="userbox">
       <div class="who"><b id="u-nombre"></b><br><small id="u-rol"></small></div>
+      <button class="icon-btn hidden" id="b-pend" title="Casos dirigidos a usted sin responder">⏰<span class="badge" id="pend-n" style="background:var(--alta)">0</span></button>
       <button class="icon-btn" id="b-campana" title="Notificaciones">🔔<span class="badge hidden" id="campana-n">0</span></button>
       <button class="icon-btn" id="b-cuenta" title="Mi cuenta">👤</button>
     </div>
@@ -251,10 +266,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         <select class="inp" id="f-dep">
           <option value="todos">Todos los departamentos</option>
           <option value="ama_llaves">Ama de llaves</option>
+          <option value="supervisora">Supervisora</option>
           <option value="operaciones">Operaciones</option>
           <option value="admin">Administración</option>
           <option value="mucama">Dirigidos a mucamas</option>
           <option value="mios">Reportes que yo creé</option>
+          <option value="asignados">Asignados a mí</option>
         </select>
         <select class="inp" id="f-est">
           <option value="todos">Todos los estados activos</option>
@@ -299,10 +316,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 
           <label class="f">Dirigido a</label>
           <div class="seg c2" id="n-destinos"></div>
-          <div id="n-asig-box" class="hidden">
-            <label class="f" for="n-asig">¿A cuál mucama?</label>
-            <select class="inp" id="n-asig"></select>
-          </div>
+          <div id="n-asig-box" class="hidden"></div>
 
           <label class="f">Prioridad</label>
           <div class="seg c3">
@@ -360,6 +374,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <select class="inp" id="h-dep">
             <option value="todos">Todos los departamentos</option>
             <option value="ama_llaves">Ama de llaves</option>
+            <option value="supervisora">Supervisora</option>
             <option value="operaciones">Operaciones</option>
             <option value="admin">Administración</option>
             <option value="mucama">Dirigidos a mucamas</option>
@@ -425,11 +440,45 @@ const MAX_FOTOS = 8;
 const DIA = 24 * 60 * 60 * 1000;
 
 const ROL = { admin:'Administrador', ama_llaves:'Ama de llaves', supervisora:'Supervisora', operaciones:'Operaciones', mucama:'Mucama' };
-// Departamento que atiende cada rol (la Supervisora trabaja en Ama de llaves)
-const depDe = rol => (rol === 'ama_llaves' || rol === 'supervisora') ? 'ama_llaves' : (rol === 'operaciones' ? 'operaciones' : null);
-const DEP = { ama_llaves:'Ama de llaves', operaciones:'Operaciones', admin:'Administración', mucama:'Mucama' };
-const DEP_COLOR = { ama_llaves:'var(--ama)', operaciones:'var(--ops)', admin:'#4b2f86', mucama:'#1f7a68' };
-const depTxt = r => r.departamento === 'mucama' ? 'Mucama: ' + nombre(r.asignado_a) : DEP[r.departamento];
+// Destinos ("Dirigido a"): cada reporte va a un rol y a una o varias personas de ese rol
+const DEP = { ama_llaves:'Ama de llaves', supervisora:'Supervisora', operaciones:'Operaciones', mucama:'Mucama', admin:'Administración' };
+const DEP_PLURAL = { ama_llaves:'Ama de llaves', supervisora:'Supervisoras', operaciones:'Operaciones', mucama:'Mucamas', admin:'Administradores' };
+const DEP_FEM = { ama_llaves:true, supervisora:true, mucama:true, operaciones:false, admin:false };
+const DEP_COLOR = { ama_llaves:'var(--ama)', supervisora:'var(--sup)', operaciones:'var(--ops)', admin:'#4b2f86', mucama:'#1f7a68' };
+// Botones de "Dirigido a" que ve cada rol en Nuevo reporte (debe coincidir con la base de datos)
+const DESTINOS_ROL = {
+  admin:       ['ama_llaves', 'supervisora', 'operaciones', 'mucama', 'admin'],
+  ama_llaves:  ['mucama', 'supervisora', 'operaciones', 'admin'],
+  operaciones: ['ama_llaves', 'operaciones', 'mucama', 'admin'],
+  supervisora: ['ama_llaves', 'operaciones', 'mucama', 'admin'],
+  mucama:      ['ama_llaves', 'supervisora', 'operaciones']
+};
+const DEST_CLS = { ama_llaves:'ama', supervisora:'sup', operaciones:'ops', mucama:'mucama', admin:'admin' };
+const RECORDATORIO_ADMIN = 60 * 60 * 1000;   // cada hora
+
+// Personas a las que va dirigido (incluye el formato viejo de una sola mucama)
+const asignadosDe = r => (r.asignados && r.asignados.length) ? r.asignados : (r.asignado_a ? [r.asignado_a] : []);
+const meAsignaron = r => asignadosDe(r).includes(S.user.id);
+// ¿Está dirigido a mí? (obligado a responder). Reportes viejos sin personas: todo el rol.
+const esDestinatario = r => asignadosDe(r).length ? meAsignaron(r) : S.perfil.rol === r.departamento;
+// ¿Puedo responder / cambiar el estado? (sin contar si el caso está en Pendiente Admin o Listo)
+function puedeResponder(r){
+  const rol = S.perfil.rol;
+  return rol === 'admin' || esDestinatario(r)
+    || (rol === 'ama_llaves' && (r.departamento === 'mucama' || r.departamento === 'supervisora'))
+    || (rol === 'supervisora' && r.departamento === 'mucama');
+}
+function listaNombres(ids, completo){
+  const n = ids.map(nombre);
+  if (completo || n.length === 1) return n.join(', ');
+  if (n.length === 2) return n.join(' y ');
+  return `${n[0]}, ${n[1]} y ${n.length - 2} más`;
+}
+function depTxt(r, completo){
+  const ids = asignadosDe(r);
+  if (!ids.length) return DEP[r.departamento];
+  return (ids.length > 1 ? DEP_PLURAL[r.departamento] : DEP[r.departamento]) + ': ' + listaNombres(ids, completo);
+}
 const PRI = { alta:'Alta', media:'Media', baja:'Baja' };
 const EST = { nuevo:'Nuevo', en_proceso:'En proceso', revisado_pendiente:'Revisado / Pendiente', pendiente_admin:'Pendiente Admin', listo:'Listo' };
 
@@ -565,6 +614,7 @@ async function iniciar(){
   S.intervalos.push(setInterval(actualizarTimers, 30000));
   S.intervalos.push(setInterval(() => { cargarActivos(); if (S.vista === 'mis') cargarMis(true); }, 60000));
   S.intervalos.push(setInterval(() => { if (S.alertaId) beep(); }, 12000));
+  if (perfil.rol === 'admin') { recordatorioAdmin(); S.intervalos.push(setInterval(recordatorioAdmin, RECORDATORIO_ADMIN)); }
 }
 
 function mostrarLogin(msg){
@@ -634,7 +684,7 @@ async function cargarActivos(){
 
 function renderPanel(){
   const dep = $('#f-dep').value, est = $('#f-est').value, q = norm($('#f-q').value);
-  const depOk = r => dep === 'todos' || (dep === 'mios' ? r.creado_por === S.user.id : r.departamento === dep);
+  const depOk = r => dep === 'todos' || (dep === 'mios' ? r.creado_por === S.user.id : dep === 'asignados' ? meAsignaron(r) : r.departamento === dep);
   const lista = S.activos.filter(r =>
     depOk(r) &&
     (est === 'todos' || r.estado === est) &&
@@ -691,16 +741,14 @@ function conectarTiempoReal(){
 /* =====================================================================
    ALERTAS DE REPORTE NUEVO
    ===================================================================== */
-// ¿Este reporte le corresponde atender al usuario conectado? (para la ventana de alerta)
-function esParaMi(r){
-  const rol = S.perfil.rol;
-  if (r.departamento === 'mucama') return rol === 'mucama' && r.asignado_a === S.user.id;
-  return !!depDe(rol) && depDe(rol) === r.departamento;
-}
+// ¿Este reporte le genera la ventana de alerta obligatoria? (todos menos el administrador)
+const esParaMi = r => S.perfil.rol !== 'admin' && esDestinatario(r);
+
 function revisarAlertas(){
   const rol = S.perfil.rol;
   // 1) Caso que el usuario abrió pero todavía no respondió: debe responderlo obligatoriamente
-  const pendiente = S.activos.find(r => r.estado === 'nuevo' && r.abierto_en && r.abierto_por === S.user.id && puedeAtender(r));
+  const pendiente = rol === 'admin' ? null
+    : S.activos.find(r => r.estado === 'nuevo' && r.abierto_en && r.abierto_por === S.user.id && esDestinatario(r));
   if (pendiente) {
     ocultarAlerta();
     if (S.forzadoId !== pendiente.id) abrirDetalle(pendiente.id, true);
@@ -723,9 +771,38 @@ function revisarAlertas(){
     const ids = new Set(sinAbrir.map(r => r.id));
     $$('#toasts .toast[data-tipo="nuevo"]').forEach(t => { if (!ids.has(+t.dataset.id)) t.remove(); });
     sinAbrir.forEach(r => { if (!S.toastsVistos.has(r.id)) { S.toastsVistos.add(r.id); toastAdmin(r); } });
-    const n = sinAbrir.length;
-    if (!pendiente) document.title = n ? `(${n}) Reportes sin abrir` : 'Reportes Ama de Llaves';
+    const mios = pendientesAdmin().length;
+    document.title = mios ? `(${mios}) Dirigidos a usted sin responder`
+      : sinAbrir.length ? `(${sinAbrir.length}) Reportes sin abrir` : 'Reportes Ama de Llaves';
+    pintarPendAdmin();
   }
+}
+
+/* ---------- Administrador: recordatorio suave de los casos dirigidos a él ---------- */
+const pendientesAdmin = () => S.activos.filter(r => r.estado === 'nuevo' && esDestinatario(r));
+function pintarPendAdmin(){
+  const b = $('#b-pend'); if (!b) return;
+  const n = pendientesAdmin().length;
+  b.classList.toggle('hidden', !n);
+  $('#pend-n').textContent = n;
+}
+function recordatorioAdmin(){
+  if (S.perfil?.rol !== 'admin') return;
+  const lista = pendientesAdmin(); if (!lista.length) return;
+  $$('#toasts .toast[data-tipo="recordatorio"]').forEach(t => t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast notif'; el.dataset.tipo = 'recordatorio';
+  el.innerHTML = `<div class="tt">⏰ Recordatorio</div>
+    <div class="tb">Tiene <b>${lista.length}</b> caso(s) dirigidos a usted sin responder.<br>
+    <span style="color:var(--muted);font-size:13px">${lista.slice(0, 3).map(r => esc(r.numero_caso)).join(' · ')}${lista.length > 3 ? ' …' : ''}</span></div>
+    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ver casos</button></div>`;
+  el.querySelector('[data-cerrar]').onclick = () => el.remove();
+  el.querySelector('[data-ver]').onclick = () => { el.remove(); verPendAdmin(); };
+  $('#toasts').prepend(el);   // sin sonido
+}
+function verPendAdmin(){
+  $('#f-dep').value = 'asignados'; $('#f-est').value = 'nuevo'; $('#f-q').value = '';
+  irA('panel');
 }
 
 function mostrarAlerta(r, total){
@@ -749,28 +826,37 @@ function ocultarAlerta(){ S.alertaId = null; $('#alerta').classList.add('hidden'
 $('#al-abrir').addEventListener('click', async () => {
   const id = S.alertaId; if (!id) return;
   const b = $('#al-abrir'); b.disabled = true; b.textContent = 'Abriendo…';
-  const { error } = await sb.rpc('abrir_caso', { p_id: id });
+  const { data:resp, error } = await sb.rpc('abrir_caso', { p_id: id });
   b.disabled = false; b.textContent = 'Abrir caso';
   if (error) return aviso(errMsg(error), true);
   ocultarAlerta();
-  abrirDetalle(id, true);
+  if (resp && resp !== S.user.id) {
+    // Otra persona encadenada lo abrió primero: puede verlo o responder, sin obligación
+    aviso(`${nombre(resp)} ya abrió este caso. Puede verlo o responder si lo necesita.`);
+    abrirDetalle(id);
+  } else abrirDetalle(id, true);
   cargarActivos();
 });
 
+// Administrador: aviso de cada reporte nuevo. Solo "abre" (queda como responsable) si va dirigido a él;
+// en los demás solo mira y queda registrado como "visto".
 function toastAdmin(r){
+  const mio = esDestinatario(r);
   const el = document.createElement('div');
   el.className = 'toast'; el.dataset.id = r.id; el.dataset.tipo = 'nuevo';
   el.style.borderLeftColor = DEP_COLOR[r.departamento];
-  el.innerHTML = `<div class="tt">🔔 Reporte nuevo · ${esc(depTxt(r))}</div>
+  el.innerHTML = `<div class="tt">🔔 ${mio ? 'Dirigido a usted' : 'Reporte nuevo'} · ${esc(depTxt(r))}</div>
     <div class="tb"><b>${esc(r.numero_caso)}</b> · ${esc(r.propiedad_nombre || '')}<br>
     <span style="color:var(--muted);font-size:13px">Prioridad ${PRI[r.prioridad]} · ${esc(nombre(r.creado_por))}</span></div>
-    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Abrir caso</button></div>`;
+    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>${mio ? 'Abrir caso' : 'Ver caso'}</button></div>`;
   el.querySelector('[data-cerrar]').onclick = () => el.remove();
   el.querySelector('[data-ver]').onclick = async () => {
     if (S.forzadoId) return aviso('Primero responda el caso que tiene abierto', true);
-    const { error } = await sb.rpc('abrir_caso', { p_id: r.id });
-    if (error) return aviso(errMsg(error), true);
-    el.remove(); abrirDetalle(r.id, true); cargarActivos();
+    if (mio) {
+      const { error } = await sb.rpc('abrir_caso', { p_id: r.id });
+      if (error) return aviso(errMsg(error), true);
+    }
+    el.remove(); abrirDetalle(r.id); cargarActivos();
   };
   $('#toasts').prepend(el);
   beep();
@@ -793,7 +879,7 @@ function nuevaNotif(n){
   S.notifs.unshift(n); pintarCampana();
   const el = document.createElement('div');
   el.className = 'toast notif'; el.dataset.tipo = 'notif';
-  el.innerHTML = `<div class="tt">📬 Revise su reporte</div>
+  el.innerHTML = `<div class="tt">📬 Novedad en un reporte</div>
     <div class="tb"><b>${esc(n.numero_caso)}</b> · ${esc(n.propiedad_nombre || '')}<br>
     <span style="font-size:13px">${esc(n.mensaje)}</span></div>
     <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ver reporte</button></div>`;
@@ -813,7 +899,7 @@ function verNotifs(){
       <div class="nm">${esc(n.mensaje)}</div>
       <div class="nf">${fecha(n.creado_en)}</div></button>`).join('');
   const ok = abrirModal(`<div class="m-head"><div><h3>Notificaciones</h3>
-      <div style="color:var(--muted);font-size:13px">Cambios en los reportes que usted creó o tiene asignados</div></div>
+      <div style="color:var(--muted);font-size:13px">Novedades de los reportes que usted creó, tiene asignados o le corresponde seguir</div></div>
       <button class="x" data-x aria-label="Cerrar">✕</button></div>
     <div class="m-body">
       ${S.notifs.some(n => !n.leida) ? '<button class="btn sec sm" id="nt-todas" style="margin-bottom:8px">✔ Marcar todas como leídas</button>' : ''}
@@ -825,6 +911,7 @@ function verNotifs(){
   if (t) t.onclick = async () => { await sb.rpc('marcar_leidas', { p_ids:null }); S.notifs.forEach(n => n.leida = true); pintarCampana(); verNotifs(); };
 }
 $('#b-campana').addEventListener('click', verNotifs);
+$('#b-pend').addEventListener('click', verPendAdmin);
 
 /* =====================================================================
    DETALLE DEL CASO Y SEGUIMIENTO
@@ -861,24 +948,28 @@ const ACC = {
   nota:        { t:'Agregar nota', nota:true, cls:'sec', campos:[['comentario','Nota de seguimiento', true]] }
 };
 
+// ¿Puede responder ahora? (Pendiente Admin y Listo quedan solo para administradores)
 function puedeAtender(r){
-  const rol = S.perfil.rol;
-  if (rol === 'admin') return true;
-  const mio = r.departamento === 'mucama' ? r.asignado_a === S.user.id : depDe(rol) === r.departamento;
-  return mio && r.estado !== 'pendiente_admin' && r.estado !== 'listo';
+  if (S.perfil.rol === 'admin') return true;
+  return puedeResponder(r) && r.estado !== 'pendiente_admin' && r.estado !== 'listo';
 }
 
 async function abrirDetalle(id, forzado){
   if (S.forzadoId && S.forzadoId !== id) return aviso('Primero responda el caso que tiene abierto', true);
   if (forzado) S.forzadoId = id;
   abrirModal('<div class="loading">Cargando caso…</div>', false, true);
-  const [{ data:r, error }, { data:bit }] = await Promise.all([
-    sb.from('reportes').select('*').eq('id', id).single(),
-    sb.from('bitacora').select('*').eq('reporte_id', id).order('creado_en')
+  const cargarBit = () => sb.from('bitacora').select('*').eq('reporte_id', id).order('creado_en');
+  let [{ data:r, error }, { data:bit }] = await Promise.all([
+    sb.from('reportes').select('*').eq('id', id).single(), cargarBit()
   ]);
   if (error || !r) { cerrarModal(true); return aviso('No se pudo cargar el caso', true); }
-  // Solo se obliga a responder mientras el caso siga "Nuevo" y lo pueda atender
-  if (forzado && !(r.estado === 'nuevo' && puedeAtender(r))) { S.forzadoId = null; forzado = false; }
+  // Primer ingreso de esta persona al caso: queda como "Visto" en la bitácora (sin avisos)
+  if (!(bit || []).some(b => b.usuario_id === S.user.id)) {
+    const { error:ev } = await sb.rpc('registrar_visto', { p_id:id });
+    if (!ev) ({ data:bit } = await cargarBit());
+  }
+  // Solo se obliga a responder a quien va dirigido, mientras el caso siga "Nuevo"
+  if (forzado && !(r.estado === 'nuevo' && esParaMi(r) && puedeAtender(r))) { S.forzadoId = null; forzado = false; }
   if (S.forzadoId === id) forzado = true;
   S.detalle = r;
 
@@ -900,11 +991,15 @@ async function abrirDetalle(id, forzado){
   const reclasif = puedeAtender(r) && r.estado !== 'listo';
 
   let aviso2 = '';
-  const mioDep = r.departamento === 'mucama' ? r.asignado_a === S.user.id : depDe(rol) === r.departamento;
-  if (rol !== 'admin' && rol !== 'mucama' && !mioDep)
+  const mioDep = esDestinatario(r);
+  if (rol !== 'admin' && !mioDep && puedeResponder(r) && r.estado !== 'listo' && r.estado !== 'pendiente_admin')
+    aviso2 = `<div class="auto-note">ℹ️ Este caso es de ${esc(depTxt(r))}. Usted puede responderlo si la persona asignada no puede; si solo lo revisa, queda registrado como visto.</div>`;
+  else if (rol !== 'admin' && rol !== 'mucama' && !puedeResponder(r))
     aviso2 = `<div class="auto-note">ℹ️ Este caso es de ${esc(depTxt(r))}; usted puede verlo y agregar notas.</div>`;
-  if (rol !== 'admin' && r.estado === 'pendiente_admin' && mioDep)
+  if (rol !== 'admin' && r.estado === 'pendiente_admin' && puedeResponder(r))
     aviso2 = `<div class="auto-note">ℹ️ Caso escalado: está en manos de los administradores.</div>`;
+  if (rol === 'admin' && !mioDep && r.estado === 'nuevo')
+    aviso2 = `<div class="auto-note">ℹ️ Este caso no está dirigido a usted: puede revisarlo sin responder y no cambia su estado. Si lo necesita, también puede responderlo.</div>`;
   if (r.estado !== 'listo' && !forzado)
     aviso2 += `<div class="auto-note">⏳ Caso activo: permanece pendiente hasta que se marque como <b>Listo</b>.</div>`;
   if (forzado)
@@ -924,8 +1019,9 @@ async function abrirDetalle(id, forzado){
         <div><small>Reportado</small>${fecha(r.creado_en)}</div>
         <div><small>${r.estado === 'listo' ? 'Tiempo de resolución' : 'Tiempo transcurrido'}</small>${timerHTML(r)}</div>
         <div><small>Reportó</small>${esc(nombre(r.creado_por))}</div>
-        <div><small>Dirigido a</small>${esc(depTxt(r))}</div>
-        <div><small>Abierto por</small>${r.abierto_en ? esc(nombre(r.abierto_por)) + '<br><span class="timer">' + fecha(r.abierto_en) + '</span>' : '—'}</div>
+        <div><small>Dirigido a</small>${esc(depTxt(r, true))}</div>
+        <div><small>Abierto por (responsable)</small>${r.abierto_en ? esc(nombre(r.abierto_por)) + '<br><span class="timer">' + fecha(r.abierto_en) + '</span>' : '—'}</div>
+        ${(bit || []).some(b => b.accion === 'visto') ? `<div><small>Visto por</small>${esc([...new Set((bit || []).filter(b => b.accion === 'visto').map(b => nombre(b.usuario_id)))].join(', '))}</div>` : ''}
         ${r.cerrado_en ? `<div><small>Cerrado por</small>${esc(nombre(r.cerrado_por))}<br><span class="timer">${fecha(r.cerrado_en)}</span></div>` : ''}
       </div>
       <div class="sec-t">Reporte</div>
@@ -948,7 +1044,7 @@ async function abrirDetalle(id, forzado){
 
 function bitHTML(b){
   const titulo = {
-    creado:'Reporte creado', abierto:'Caso abierto', nota:'Nota',
+    creado:'Reporte creado', abierto:'Caso abierto (responsable)', nota:'Nota', visto:'Visto',
     reclasificado:'Reclasificado',
     cambio_estado:`Estado: ${EST[b.estado_anterior] || b.estado_anterior || ''} → ${EST[b.estado_nuevo] || b.estado_nuevo}`
   }[b.accion] || b.accion;
@@ -966,11 +1062,8 @@ function formAccion(tipo, r){
     box.innerHTML = `<form class="acc-form" id="fa">
       <b>Reclasificar caso</b>
       <label class="f">Dirigido a</label>
-      <select class="inp" id="fa-dep">${Object.entries(DEP).map(([k, v]) => `<option value="${k}" ${k === r.departamento ? 'selected' : ''}>${k === 'mucama' ? 'Una mucama específica' : v}</option>`).join('')}</select>
-      <div id="fa-asig-box" class="${r.departamento === 'mucama' ? '' : 'hidden'}">
-        <label class="f">¿A cuál mucama?</label>
-        <select class="inp" id="fa-asig">${opcionesMucamas(r.asignado_a)}</select>
-      </div>
+      <select class="inp" id="fa-dep">${Object.entries(DEP).map(([k, v]) => `<option value="${k}" ${k === r.departamento ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <div id="fa-asig-box"></div>
       <label class="f">Prioridad</label>
       <select class="inp" id="fa-pri">${Object.entries(PRI).map(([k, v]) => `<option value="${k}" ${k === r.prioridad ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <label class="f">Motivo</label>
@@ -987,7 +1080,14 @@ function formAccion(tipo, r){
     </form>`;
   }
   box.querySelector('[data-cancel]').onclick = () => box.innerHTML = '';
-  if ($('#fa-dep')) $('#fa-dep').onchange = () => $('#fa-asig-box').classList.toggle('hidden', $('#fa-dep').value !== 'mucama');
+  if ($('#fa-dep')) {
+    const pintaFa = () => {
+      const d = $('#fa-dep').value, b = $('#fa-asig-box');
+      b.innerHTML = '<label class="f">¿A quién?</label>' + selectorHTML(d, d === r.departamento ? asignadosDe(r) : []);
+      activarSelector(b);
+    };
+    $('#fa-dep').onchange = pintaFa; pintaFa();
+  }
   box.querySelector('textarea').focus();
   box.scrollIntoView({ behavior:'smooth', block:'nearest' });
 
@@ -997,9 +1097,10 @@ function formAccion(tipo, r){
     let res;
     if (tipo === 'reclasificar') {
       const dep = $('#fa-dep').value;
-      if (dep === 'mucama' && !$('#fa-asig').value) { btn.disabled = false; $('#fa-err').textContent = 'Seleccione la mucama'; return; }
+      const asig = seleccionados($('#fa-asig-box'));
+      if (!asig.length) { btn.disabled = false; $('#fa-err').textContent = faltaSeleccion(dep); return; }
       res = await sb.rpc('reclasificar', { p_id:r.id, p_departamento:dep, p_prioridad:$('#fa-pri').value,
-        p_motivo:$('#fa-motivo').value, p_asignado: dep === 'mucama' ? $('#fa-asig').value : null });
+        p_motivo:$('#fa-motivo').value, p_asignados: asig });
     } else {
       const v = k => (box.querySelector(`[data-campo="${k}"]`) || {}).value || null;
       res = ACC[tipo].nota
@@ -1021,26 +1122,53 @@ function formAccion(tipo, r){
 /* =====================================================================
    NUEVO REPORTE
    ===================================================================== */
-function opcionesMucamas(sel){
-  const m = Object.values(S.perfiles).filter(p => p.rol === 'mucama' && p.activo).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  return '<option value="">— Seleccione la mucama —</option>' +
-    m.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
+/* ---------- selección de una, varias o todas las personas de un rol ---------- */
+const personasPara = dep => Object.values(S.perfiles).filter(p => p.activo && p.rol === dep)
+  .sort((a, b) => a.nombre.localeCompare(b.nombre));
+const faltaSeleccion = dep => `Seleccione al menos una persona de ${DEP[dep]}`;
+function selectorHTML(dep, sel = []){
+  const gente = personasPara(dep), fem = DEP_FEM[dep];
+  if (!gente.length) return `<div class="pick"><div class="pick-empty">No hay usuarios activos con el rol ${esc(DEP[dep])}.</div></div>`;
+  // Si el rol tiene una sola persona, se elige sola
+  if (gente.length === 1) return `<div class="pick" data-pick><div class="pick-solo">Se enviará a: <b>${esc(gente[0].nombre)}</b></div>
+    <input type="checkbox" value="${gente[0].id}" checked hidden></div>`;
+  return `<div class="pick" data-pick data-fem="${fem ? 1 : 0}">
+    <div class="pick-h"><b>${esc(DEP_PLURAL[dep])}</b><span class="pick-n" data-pick-n></span>
+      <button type="button" class="btn sec sm" data-pick-todas></button></div>
+    <div class="pick-list">${gente.map(p => `<label class="pick-it"><input type="checkbox" value="${p.id}" ${sel.includes(p.id) ? 'checked' : ''}>
+      <span>${esc(p.nombre)}</span></label>`).join('')}</div>
+  </div>`;
 }
+function activarSelector(box){
+  const pick = box.querySelector('[data-pick]'); if (!pick) return;
+  const btn = pick.querySelector('[data-pick-todas]'), n = pick.querySelector('[data-pick-n]');
+  if (!btn) return;
+  const checks = [...pick.querySelectorAll('input[type=checkbox]')];
+  const t = pick.dataset.fem === '1' ? 'todas' : 'todos';
+  const pintar = () => {
+    const k = checks.filter(c => c.checked).length, todas = k === checks.length;
+    n.textContent = todas ? `${t[0].toUpperCase() + t.slice(1)} (${k})` : `${k} de ${checks.length} seleccionad${t === 'todas' ? 'a' : 'o'}(s)`;
+    btn.textContent = todas ? `Quitar ${t}` : `Seleccionar ${t}`;
+  };
+  btn.onclick = () => { const todas = checks.every(c => c.checked); checks.forEach(c => c.checked = !todas); pintar(); };
+  checks.forEach(c => c.onchange = pintar);
+  pintar();
+}
+const seleccionados = box => [...box.querySelectorAll('[data-pick] input:checked')].map(c => c.value);
+
 function armarDestinos(){
-  const amplio = ['operaciones', 'admin'].includes(S.perfil.rol);
-  const ops = amplio
-    ? [['ama_llaves','Ama de llaves','ama'], ['operaciones','Operaciones','ops'], ['mucama','Una mucama','mucama'], ['admin','Administración','admin']]
-    : [['ama_llaves','Ama de llaves','ama'], ['operaciones','Operaciones','ops']];
-  $('#n-destinos').className = 'seg ' + (ops.length === 4 ? 'c4' : 'c2');
-  $('#n-destinos').innerHTML = ops.map(([v, t, c], i) =>
-    `<input type="radio" name="n-dep" id="d-${v}" value="${v}" ${i === 0 ? 'required' : ''}><label for="d-${v}" class="lbl-${c}">${t}</label>`).join('');
-  $('#n-asig').innerHTML = opcionesMucamas();
-  $('#n-asig-box').classList.add('hidden');
+  const ops = DESTINOS_ROL[S.perfil.rol] || [];
+  $('#n-destinos').className = 'seg c' + ops.length;
+  $('#n-destinos').innerHTML = ops.map((v, i) =>
+    `<input type="radio" name="n-dep" id="d-${v}" value="${v}" ${i === 0 ? 'required' : ''}><label for="d-${v}" class="lbl-${DEST_CLS[v]}">${DEP[v]}</label>`).join('');
+  pintarSelectorNuevo();
 }
-$('#n-destinos').addEventListener('change', () => {
-  const d = document.querySelector('[name=n-dep]:checked');
-  $('#n-asig-box').classList.toggle('hidden', !d || d.value !== 'mucama');
-});
+function pintarSelectorNuevo(){
+  const d = document.querySelector('[name=n-dep]:checked'), box = $('#n-asig-box');
+  if (d) { box.innerHTML = selectorHTML(d.value); activarSelector(box); box.classList.remove('hidden'); }
+  else { box.innerHTML = ''; box.classList.add('hidden'); }
+}
+$('#n-destinos').addEventListener('change', e => { if (e.target.name === 'n-dep') pintarSelectorNuevo(); });
 $('#n-file').addEventListener('change', e => {
   const files = [...e.target.files];
   for (const f of files) {
@@ -1082,7 +1210,8 @@ $('#f-nuevo').addEventListener('submit', async e => {
   if (!$('#n-prop').value) return err.textContent = 'Seleccione la propiedad';
   if (!$('#n-desc').value.trim()) return err.textContent = 'Escriba el reporte';
   if (!dep) return err.textContent = 'Indique a quién va dirigido el reporte';
-  if (dep.value === 'mucama' && !$('#n-asig').value) return err.textContent = 'Seleccione la mucama a la que va dirigido';
+  const asig = seleccionados($('#n-asig-box'));
+  if (!asig.length) return err.textContent = faltaSeleccion(dep.value);
   if (!pri) return err.textContent = 'Seleccione la prioridad';
 
   const btn = $('#n-btn'); btn.disabled = true;
@@ -1101,14 +1230,14 @@ $('#f-nuevo').addEventListener('submit', async e => {
     const { data, error } = await sb.from('reportes').insert({
       propiedad_id: +$('#n-prop').value, descripcion: $('#n-desc').value.trim(),
       departamento: dep.value, prioridad: pri.value, fotos: paths,
-      asignado_a: dep.value === 'mucama' ? $('#n-asig').value : null
+      asignados: asig
     }).select().single();
     if (error) throw error;
 
     $('#n-num').textContent = data.numero_caso;
     $('#n-fecha').textContent = 'Registrado el ' + fecha(data.creado_en);
     $('#f-nuevo').classList.add('hidden'); $('#n-exito').classList.remove('hidden');
-    $('#f-nuevo').reset(); $('#n-asig-box').classList.add('hidden');
+    $('#f-nuevo').reset(); pintarSelectorNuevo();
     S.fotosNuevas.forEach(f => URL.revokeObjectURL(f.url)); S.fotosNuevas = []; pintarFotos();
     cargarActivos();
   } catch (ex) {
@@ -1126,7 +1255,7 @@ S.misCasos = []; S.misFiltro = 'activos';
 async function cargarMis(silencioso){
   if (!silencioso) $('#l-mis').innerHTML = '<div class="loading">Cargando…</div>';
   const { data, error } = await sb.from('reportes').select('*')
-    .or(`creado_por.eq.${S.user.id},asignado_a.eq.${S.user.id}`)
+    .or(`creado_por.eq.${S.user.id},asignado_a.eq.${S.user.id},asignados.cs.{${S.user.id}}`)
     .order('creado_en', { ascending:false }).limit(200);
   if (error) { if (!silencioso) $('#l-mis').innerHTML = ''; return; }
   S.misCasos = data || [];
@@ -1144,7 +1273,7 @@ function pintarMis(){
   $('#stats-mis').innerHTML = stats.map(([l, n, col]) => `<div class="stat" style="--c:${col}"><b>${n}</b><span>${l}</span></div>`).join('');
   const f = S.misFiltro;
   const lista = S.misCasos.filter(r => f === 'todos' || (f === 'listo' ? r.estado === 'listo'
-    : f === 'asignados' ? r.asignado_a === S.user.id : r.estado !== 'listo'));
+    : f === 'asignados' ? meAsignaron(r) : r.estado !== 'listo'));
   const vacio = f === 'listo' ? 'Aún no hay casos resueltos' : f === 'activos' ? 'No tiene casos en seguimiento 👍'
     : f === 'asignados' ? 'No tiene reportes asignados' : 'Aún no ha enviado reportes';
   $('#l-mis').innerHTML = lista.length ? lista.map(cardHTML).join('') : `<div class="card-box loading">${vacio}</div>`;
@@ -1235,6 +1364,12 @@ function formUsuario(p){
     const pass = $('#fu-pass').value;
     let res;
     if (p) {
+      // Aviso si el usuario tiene casos activos y se desactiva o cambia de rol
+      const pierde = $('#fu-activo').value !== '1' || $('#fu-rol').value !== p.rol;
+      const pend = S.activos.filter(r => asignadosDe(r).includes(p.id));
+      if (pierde && pend.length && !confirm(`${p.nombre} tiene ${pend.length} caso(s) activo(s) dirigidos a su nombre (${pend.slice(0, 5).map(r => r.numero_caso).join(', ')}${pend.length > 5 ? '…' : ''}).\n\nSi lo desactiva o le cambia el rol, ya no podrá atenderlos. Conviene reclasificarlos a otra persona.\n\n¿Desea guardar el cambio de todas formas?`)) {
+        btn.disabled = false; return;
+      }
       res = await sb.rpc('admin_actualizar_usuario', { p_id:p.id, p_nombre:$('#fu-nombre').value, p_rol:$('#fu-rol').value, p_activo:$('#fu-activo').value === '1' });
       if (!res.error && pass) res = await sb.rpc('admin_cambiar_password', { p_id:p.id, p_password:pass });
     } else {
@@ -1248,26 +1383,28 @@ function formUsuario(p){
 
 /* ---------- Autorizaciones ---------- */
 const PERMISOS = [
-  //                                                  Admin Ama  Sup  Ops  Mucama
-  ['Crear reportes',                                   1, 1, 1, 1, 1],
-  ['Ver sus propios reportes',                         1, 1, 1, 1, 1],
-  ['Ver el panel con todos los reportes',              1, 1, 1, 1, 0],
-  ['Recibir alerta de reportes de Ama de llaves',      0, 1, 1, 0, 0],
-  ['Recibir alerta de reportes de Operaciones',        0, 0, 0, 1, 0],
-  ['Recibir alerta de reportes asignados a ella',      0, 0, 0, 0, 1],
-  ['Dirigir reportes a una mucama o a Administración', 1, 0, 0, 1, 0],
-  ['Atender los reportes que le asignan',              1, 0, 0, 0, 1],
-  ['Notificación de cambios en sus reportes',          1, 1, 1, 1, 1],
-  ['Aviso de todos los reportes nuevos (ambos)',       1, 0, 0, 0, 0],
-  ['Atender casos de Ama de llaves',                   1, 1, 1, 0, 0],
-  ['Atender casos de Operaciones',                     1, 0, 0, 1, 0],
-  ['Atender casos en Pendiente Admin / reabrir',       1, 0, 0, 0, 0],
-  ['Agregar notas a cualquier caso',                   1, 1, 1, 1, 0],
-  ['Buscar casos resueltos',                           1, 1, 1, 1, 0],
-  ['Crear y modificar propiedades',                    1, 1, 0, 0, 0],
-  ['Eliminar propiedades',                             1, 0, 0, 0, 0],
-  ['Usuarios y autorizaciones',                        1, 0, 0, 0, 0],
-  ['Descargar respaldo en Excel',                      1, 0, 0, 0, 0]
+  //                                                              Admin Ama  Sup  Ops  Mucama
+  ['Crear reportes',                                               1, 1, 1, 1, 1],
+  ['Ver los reportes que creó o que le dirigieron',                1, 1, 1, 1, 1],
+  ['Ver todos los reportes en el panel',                           1, 0, 0, 1, 0],
+  ['Ver los reportes de mucamas (creados o dirigidos a ellas)',    1, 1, 1, 1, 0],
+  ['Ver los reportes de supervisoras',                             1, 1, 1, 1, 0],
+  ['Alerta obligatoria de los reportes dirigidos a usted',         0, 1, 1, 1, 1],
+  ['Recordatorio cada hora de los reportes dirigidos a usted',     1, 0, 0, 0, 0],
+  ['Aviso de todos los reportes nuevos (sin obligación)',          1, 0, 0, 0, 0],
+  ['Campana: nuevos y cambios de estado de casos de mucamas',      0, 1, 1, 0, 0],
+  ['Campana: nuevos y cambios de estado de casos de supervisoras', 0, 1, 0, 0, 0],
+  ['Responder los reportes dirigidos a usted',                     1, 1, 1, 1, 1],
+  ['Responder casos de mucamas (si la mucama no puede)',           1, 1, 1, 0, 0],
+  ['Responder casos de supervisoras (si la supervisora no puede)', 1, 1, 0, 0, 0],
+  ['Responder cualquier caso, Pendiente Admin y reabrir',          1, 0, 0, 0, 0],
+  ['Revisar un caso sin responder (queda como "Visto")',           1, 1, 1, 1, 1],
+  ['Agregar notas a los casos que puede ver',                      1, 1, 1, 1, 0],
+  ['Buscar casos resueltos',                                       1, 1, 1, 1, 0],
+  ['Crear y modificar propiedades',                                1, 1, 0, 0, 0],
+  ['Eliminar propiedades',                                         1, 0, 0, 0, 0],
+  ['Usuarios y autorizaciones',                                    1, 0, 0, 0, 0],
+  ['Descargar respaldo en Excel',                                  1, 0, 0, 0, 0]
 ];
 async function mAutorizaciones(){
   await cargarPerfiles();
@@ -1276,6 +1413,10 @@ async function mAutorizaciones(){
     <h3>Accesos por rol</h3>
     <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Permiso</th><th>Administrador</th><th>Ama de llaves</th><th>Supervisora</th><th>Operaciones</th><th>Mucama</th></tr></thead><tbody>
       ${PERMISOS.map(([t, ...v]) => `<tr><td>${t}</td>${v.map(x => x ? '<td class="yes">✔</td>' : '<td class="no">—</td>').join('')}</tr>`).join('')}
+    </tbody></table></div>
+    <h3>Botones de "Dirigido a" por rol</h3>
+    <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Quien reporta</th>${Object.values(DEP).map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>
+      ${Object.keys(ROL).map(r => `<tr><td>${ROL[r]}</td>${Object.keys(DEP).map(d => (DESTINOS_ROL[r] || []).includes(d) ? '<td class="yes">✔</td>' : '<td class="no">—</td>').join('')}</tr>`).join('')}
     </tbody></table></div>
     <h3>Asignar rol a cada usuario</h3>
     <div class="tbl-wrap" style="margin-top:10px"><table class="tbl"><thead><tr><th>Usuario</th><th>Rol</th><th></th></tr></thead><tbody>
@@ -1286,6 +1427,8 @@ async function mAutorizaciones(){
   $$('[data-rolsave]').forEach(b => b.onclick = async () => {
     const p = S.perfiles[b.dataset.rolsave];
     const rol = document.querySelector(`[data-rolsel="${p.id}"]`).value;
+    const pend = S.activos.filter(r => asignadosDe(r).includes(p.id));
+    if (rol !== p.rol && pend.length && !confirm(`${p.nombre} tiene ${pend.length} caso(s) activo(s) dirigidos a su nombre. Si le cambia el rol, ya no podrá atenderlos.\n\n¿Desea guardar el cambio de todas formas?`)) return;
     const { error } = await sb.rpc('admin_actualizar_usuario', { p_id:p.id, p_nombre:p.nombre, p_rol:rol, p_activo:p.activo });
     if (error) return aviso(errMsg(error), true);
     aviso('Autorización actualizada'); mAutorizaciones();
@@ -1401,7 +1544,7 @@ async function exportarExcel(){
 
     const hojaRep = reps.map(r => ({
       'Caso': r.numero_caso, 'Fecha y hora': f(r.creado_en), 'Propiedad': r.propiedad_nombre,
-      'Dirigido a': depTxt(r), 'Prioridad': PRI[r.prioridad], 'Estado': EST[r.estado],
+      'Dirigido a': depTxt(r, true), 'Prioridad': PRI[r.prioridad], 'Estado': EST[r.estado],
       'Reporte': r.descripcion, 'Reportado por': nombre(r.creado_por),
       'Abierto por': r.abierto_por ? nombre(r.abierto_por) : '', 'Abierto el': f(r.abierto_en),
       'Cerrado por': r.cerrado_por ? nombre(r.cerrado_por) : '', 'Cerrado el': f(r.cerrado_en),
