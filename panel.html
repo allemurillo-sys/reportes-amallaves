@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel de reservas | The House of Tours</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="estilos.css?v=14">
+  <link rel="stylesheet" href="panel.css?v=14">
+  <link rel="stylesheet" href="tarifario.css?v=25">
+</head>
+<body class="panel">
+
+  <!-- ================= INICIO DE SESIÓN ================= -->
+  <section id="vistaLogin" class="login" hidden>
+    <form id="formLogin" class="login-caja" novalidate>
+      <div class="login-marca">
+        <svg class="brujula" viewBox="0 0 40 40" aria-hidden="true">
+          <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M20 5 L25 20 L15 20 Z" fill="#2F6E4F"/>
+          <path d="M20 35 L25 20 L15 20 Z" fill="currentColor"/>
+        </svg>
+        <span>The House of Tours</span>
+      </div>
+      <h1>Panel de colaboradores</h1>
+      <label>Correo electrónico <input id="loginCorreo" type="email" autocomplete="username" required></label>
+      <label>Clave <input id="loginClave" type="password" autocomplete="current-password" required></label>
+      <p id="loginMensaje" class="aviso" hidden></p>
+      <button id="btnEntrar" type="submit" class="btn primario grande">Entrar</button>
+    </form>
+  </section>
+
+  <!-- ================= APLICACIÓN ================= -->
+  <div id="vistaApp" hidden>
+    <header class="barra barra-panel">
+      <div class="marca">
+        <svg class="brujula" viewBox="0 0 40 40" aria-hidden="true">
+          <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M20 5 L25 20 L15 20 Z" fill="#5FAF84"/>
+          <path d="M20 35 L25 20 L15 20 Z" fill="currentColor"/>
+        </svg>
+        <span>The House of Tours</span>
+      </div>
+      <nav class="menu" aria-label="Secciones del panel">
+        <button type="button" class="menu-btn" data-vista="reservas" aria-current="page">Reservas</button>
+        <button type="button" class="menu-btn" data-vista="calendario">Calendario</button>
+        <button type="button" class="menu-btn" data-vista="servicios">Servicios</button>
+        <button type="button" class="menu-btn" data-vista="tarifario" id="btnMenuTarifario" hidden>Tarifario</button>
+        <button type="button" class="menu-btn" data-vista="mantenimiento">Mantenimiento</button>
+        <button type="button" class="menu-btn" id="btnActualizar">Actualizar</button>
+        <button type="button" class="menu-btn salir" id="btnSalir">Salir</button>
+      </nav>
+      <span id="usuarioNombre" class="usuario"></span>
+    </header>
+
+    <!-- Reservas -->
+    <section id="vistaReservas" class="vista">
+      <div class="herramientas">
+        <input id="buscar" type="search" placeholder="Buscar por nombre o número" aria-label="Buscar por nombre o número">
+        <label class="check-linea chico"><input id="verCanceladas" type="checkbox"> Ver canceladas</label>
+        <button id="btnImprimirTablero" type="button" class="btn">Imprimir listas</button>
+        <span id="ultimaActualizacion" class="nota"></span>
+      </div>
+      <main id="tablero" class="tablero"></main>
+    </section>
+
+    <!-- Calendario -->
+    <section id="vistaCalendario" class="vista" hidden>
+      <div class="catalogo">
+        <h1 class="vista-titulo">Calendario de reservas</h1>
+        <div id="calendarioContenido"></div>
+      </div>
+    </section>
+
+    <!-- Servicios -->
+    <section id="vistaServicios" class="vista" hidden>
+      <div class="catalogo">
+        <h1 class="vista-titulo">Servicios</h1>
+        <div class="pestanas" role="tablist" aria-label="Catálogo">
+          <button type="button" role="tab" class="pestana" data-pestana="servicios">Servicios</button>
+          <button type="button" role="tab" class="pestana" data-pestana="tipos">Tipos de actividad</button>
+          <button type="button" role="tab" class="pestana" data-pestana="operadores">Operadores</button>
+          <button type="button" role="tab" class="pestana" data-pestana="propiedades">Propiedades</button>
+        </div>
+        <div id="catalogoContenido"></div>
+      </div>
+    </section>
+
+    <!-- Mantenimiento -->
+    <section id="vistaMantenimiento" class="vista" hidden>
+      <div class="catalogo">
+        <h1 class="vista-titulo">Mantenimiento</h1>
+        <div class="pestanas" role="tablist" aria-label="Mantenimiento">
+          <button type="button" role="tab" class="pestana" data-mant="cuenta">Mi cuenta</button>
+          <button type="button" role="tab" class="pestana" data-mant="usuarios" data-solo="admin">Usuarios</button>
+          <button type="button" role="tab" class="pestana" data-mant="autorizaciones" data-solo="admin">Autorizaciones</button>
+          <button type="button" role="tab" class="pestana" data-mant="reportes" data-solo="ver_reportes">Reportes</button>
+        </div>
+        <div id="mantContenido"></div>
+      </div>
+    </section>
+
+    <!-- Tarifario (solo administradores) -->
+    <section id="vistaTarifario" class="vista" hidden>
+      <div class="catalogo">
+        <h1 class="vista-titulo">Tarifario</h1>
+        <div class="pestanas" role="tablist" aria-label="Tarifario">
+          <button type="button" role="tab" class="pestana" data-tar-pestana="procesar">Procesar</button>
+          <button type="button" role="tab" class="pestana" data-tar-pestana="importar">Importar</button>
+          <button type="button" role="tab" class="pestana" data-tar-pestana="operadores">Operadores</button>
+          <button type="button" role="tab" class="pestana" data-tar-pestana="final">Tarifario final</button>
+          <button type="button" role="tab" class="pestana" data-tar-pestana="comparar">Comparar</button>
+          <button type="button" role="tab" class="pestana" data-tar-pestana="catalogo">Catálogo</button>
+          <button type="button" role="tab" class="pestana" data-tar-pestana="tipos">Tipos de actividad</button>
+          <button type="button" role="tab" class="pestana" data-tar-pestana="ajustes">Ajustes</button>
+        </div>
+        <div id="tarContenido"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= DETALLE DE UNA COTIZACIÓN ================= -->
+  <div id="detalle" class="detalle-fondo" hidden>
+    <section class="detalle" role="dialog" aria-modal="true" aria-labelledby="detalleTitulo">
+      <div id="detalleContenido"></div>
+    </section>
+  </div>
+
+  <div id="impresion" class="impresion"></div>
+  <div id="aviso" class="toast" role="status" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js?v=14"></script>
+  <script src="panel.js?v=14"></script>
+  <script src="servicios.js?v=16"></script>
+  <script src="mantenimiento.js?v=17"></script>
+  <script src="calendario.js?v=14"></script>
+  <script src="tarifario.js?v=27"></script>
+  <script src="tarifario-comparar.js?v=3"></script>
+  <script src="tarifario-servicios.js?v=2"></script>
+  <script src="tarifario-catalogo.js?v=1"></script>
+</body>
+</html>
