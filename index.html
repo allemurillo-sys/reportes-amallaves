@@ -611,16 +611,39 @@ $('#f-login').addEventListener('submit', async e => {
   iniciar();
 });
 
+// Si al abrir la app no hay internet (por ejemplo, el celular recién desbloqueado),
+// NO se cierra la sesión: se reintenta solo cada pocos segundos.
+let iniciando = false, reintentoT = null;
+const esFallaRed = e => !!e && /fetch|network|failed|timeout|load|conex/i.test(e.message || String(e));
+function reintentarInicio(){
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+  $('#l-err').textContent = 'Sin conexión a internet. Reintentando automáticamente…';
+  clearTimeout(reintentoT); reintentoT = setTimeout(iniciar, 5000);
+}
 async function iniciar(){
-  const { data:{ user } } = await sb.auth.getUser();
+  if (iniciando || S.perfil) return;
+  iniciando = true; clearTimeout(reintentoT);
+  try { await iniciarSesion(); }
+  catch (e) { if (esFallaRed(e)) reintentarInicio(); else mostrarLogin(errMsg(e)); }
+  finally { iniciando = false; }
+}
+async function iniciarSesion(){
+  const { data:{ session }, error:es } = await sb.auth.getSession();
+  if (es && esFallaRed(es)) return reintentarInicio();
+  const user = session && session.user;
   if (!user) return mostrarLogin();
-  const { data:perfil } = await sb.from('perfiles').select('*').eq('id', user.id).maybeSingle();
+  const { data:perfil, error } = await sb.from('perfiles').select('*').eq('id', user.id).maybeSingle();
+  if (error) {
+    if (esFallaRed(error)) return reintentarInicio();
+    throw error;
+  }
   if (!perfil || !perfil.activo) {
-    await sb.auth.signOut();
+    await sb.auth.signOut({ scope:'local' });
     mostrarLogin('Su usuario está inactivo o no tiene acceso. Consulte al administrador.');
     return;
   }
   S.user = user; S.perfil = perfil;
+  $('#l-err').textContent = '';
   $('#u-nombre').textContent = perfil.nombre;
   $('#u-rol').textContent = ROL[perfil.rol];
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
@@ -647,6 +670,8 @@ async function iniciar(){
 }
 
 function mostrarLogin(msg){
+  clearTimeout(reintentoT);
+  S.perfil = null; S.user = null;
   S.intervalos.forEach(clearInterval); S.intervalos = [];
   if (S.canal) { sb.removeChannel(S.canal); S.canal = null; }
   if (S.canalN) { sb.removeChannel(S.canalN); S.canalN = null; }
@@ -660,7 +685,8 @@ function mostrarLogin(msg){
   document.title = 'Reportes Ama de Llaves';
 }
 
-async function salir(){ await soltarPush(); await sb.auth.signOut(); mostrarLogin(); }
+// Cierra la sesión SOLO en este dispositivo (los demás celulares/computadoras del usuario siguen conectados)
+async function salir(){ await soltarPush(); await sb.auth.signOut({ scope:'local' }); mostrarLogin(); }
 
 async function cargarPerfiles(){
   const { data } = await sb.from('perfiles').select('*').order('nombre');
