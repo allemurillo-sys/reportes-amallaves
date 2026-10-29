@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1f3a3d">
 <title>Reportes Ama de Llaves</title>
+<!-- App instalable (celular y computadora) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="iconos/favicon.png">
+<link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ama de Llaves">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -225,6 +233,22 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   #msg{bottom:90px}
   #toasts{top:60px;right:10px}
 }
+
+/* ---------- Notificaciones en el celular / instalar app ---------- */
+.push-aviso{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:16px}
+.push-aviso .pa-ic{font-size:26px;line-height:1}
+.push-aviso .pa-tx{flex:1;min-width:0}
+.push-aviso .pa-tx > b{display:block;margin-bottom:2px}
+.push-aviso .pa-tx p{margin:0;color:var(--muted);font-size:14px}
+.push-aviso .pa-ac{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.push-aviso.mal{border-left-color:var(--alta)}
+.push-pasos{margin:8px 0 0;padding-left:20px;font-size:14px;color:var(--ink)}
+.push-pasos li{margin:3px 0}
+.push-box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:16px;background:#faf9f7}
+.push-box .pb-estado{font-size:14px;margin:4px 0 10px}
+.push-box .pb-ac{display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700}
+.pill.on{background:var(--baja-bg);color:var(--baja)} .pill.off{background:var(--alta-bg);color:var(--alta)}
 </style>
 </head>
 <body>
@@ -257,6 +281,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   </header>
 
   <main>
+    <!-- Aviso para activar las notificaciones / instalar la app en este dispositivo -->
+    <div id="push-aviso" class="push-aviso hidden" role="region" aria-label="Notificaciones"></div>
+
     <!-- PANEL -->
     <section id="v-panel" class="view hidden">
       <div class="view-title"><h2>Seguimiento de reportes</h2><button class="btn sec sm" id="b-refrescar">⟳ Actualizar</button></div>
@@ -610,6 +637,8 @@ async function iniciar(){
   irA(perfil.rol === 'mucama' ? 'nuevo' : 'panel');
   await Promise.all([cargarActivos(), cargarNotifs()]);
   conectarTiempoReal();
+  prepararPush();
+  if (S.casoPendiente) { const id = S.casoPendiente; S.casoPendiente = null; abrirCasoPush(id); }
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
   S.intervalos.push(setInterval(() => { cargarActivos(); if (S.vista === 'mis') cargarMis(true); }, 60000));
@@ -623,13 +652,15 @@ function mostrarLogin(msg){
   if (S.canalN) { sb.removeChannel(S.canalN); S.canalN = null; }
   S.alertaId = null; S.toastsVistos.clear(); $('#toasts').innerHTML = '';
   S.notifs = []; S.activos = [];
+  P.oculto = false; $('#push-aviso').classList.add('hidden');
+  try { if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); } catch (e) {}
   $('#alerta').classList.add('hidden'); cerrarModal(true);
   $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
   $('#l-err').textContent = msg || '';
   document.title = 'Reportes Ama de Llaves';
 }
 
-async function salir(){ await sb.auth.signOut(); mostrarLogin(); }
+async function salir(){ await soltarPush(); await sb.auth.signOut(); mostrarLogin(); }
 
 async function cargarPerfiles(){
   const { data } = await sb.from('perfiles').select('*').order('nombre');
@@ -873,6 +904,11 @@ function pintarCampana(){
   const n = S.notifs.filter(x => !x.leida).length;
   $('#campana-n').textContent = n > 99 ? '99+' : n;
   $('#campana-n').classList.toggle('hidden', !n);
+  // Número sobre el ícono de la app instalada
+  try {
+    if (n && navigator.setAppBadge) navigator.setAppBadge(n).catch(() => {});
+    else if (!n && navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+  } catch (e) {}
 }
 function nuevaNotif(n){
   if (!n || S.notifs.some(x => x.id === n.id)) return;
@@ -1576,6 +1612,220 @@ async function exportarExcel(){
 }
 
 /* =====================================================================
+   NOTIFICACIONES EN EL CELULAR (push) E INSTALAR LA APP
+   Los avisos llegan aunque el sistema esté cerrado o el celular en reposo.
+   El envío lo hace la función "enviar-push" de Supabase cada vez que se crea
+   una notificación de la campana.
+   ===================================================================== */
+const VAPID_PUBLICA = 'BLbGTkC4mIH4gqqcR0ixUKeaIVgt-8fxz4n7v2-aDMbnbAO8OzG4nXkEJH2Rl4rkVqr0QshKLYDdNjg-NGf13ys';
+const P = { reg:null, instalar:null, oculto:false };
+const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const esAndroid = /android/i.test(navigator.userAgent);
+const esCelular = esIOS || esAndroid || /mobile/i.test(navigator.userAgent);
+const instalada = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushSoportado = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+function claveBytes(b64){
+  const s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+function nombreDispositivo(){
+  const ua = navigator.userAgent;
+  const so = esIOS ? 'iPhone/iPad' : esAndroid ? 'Android' : /windows/i.test(ua) ? 'Windows' : /mac/i.test(ua) ? 'Mac' : 'Otro';
+  const nav = /edg\//i.test(ua) ? 'Edge' : /chrome|crios/i.test(ua) ? 'Chrome' : /firefox|fxios/i.test(ua) ? 'Firefox' : /safari/i.test(ua) ? 'Safari' : 'Navegador';
+  return `${so} · ${nav}${instalada() ? ' · app' : ''}`;
+}
+
+async function registrarSW(){
+  if (!('serviceWorker' in navigator) || P.reg) return P.reg;
+  try { P.reg = await navigator.serviceWorker.register('sw.js'); } catch (e) { P.reg = null; }
+  return P.reg;
+}
+async function regLista(){
+  if (!('serviceWorker' in navigator)) return null;
+  await registrarSW();
+  if (!P.reg) return null;
+  return Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 6000))]);
+}
+
+// Estado de las notificaciones en ESTE dispositivo
+async function estadoPush(){
+  if (esIOS && !instalada()) return 'instalar';        // en iPhone solo funcionan con la app instalada
+  if (!pushSoportado()) return 'no-soportado';
+  if (Notification.permission === 'denied') return 'bloqueado';
+  if (Notification.permission !== 'granted') return 'inactivo';
+  try {
+    const reg = await regLista(), sub = reg && await reg.pushManager.getSubscription();
+    return sub ? 'activo' : 'inactivo';
+  } catch (e) { return 'inactivo'; }
+}
+
+async function guardarSub(sub){
+  const j = sub.toJSON();
+  const { error } = await sb.rpc('guardar_suscripcion', {
+    p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth, p_dispositivo:nombreDispositivo() });
+  if (error) throw error;
+}
+async function suscribir(){
+  const reg = await regLista();
+  if (!reg) throw new Error('No se pudo preparar el servicio de notificaciones. Recargue la página e intente de nuevo');
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:claveBytes(VAPID_PUBLICA) });
+  await guardarSub(sub);
+}
+
+async function activarPush(){
+  const est = await estadoPush();
+  if (est === 'instalar') { aviso('Primero instale la app en la pantalla de inicio (vea los pasos)', true); return pintarPush(); }
+  if (est === 'no-soportado') { aviso(esIOS ? 'Actualice el iPhone a iOS 16.4 o más reciente' : 'Este navegador no permite notificaciones. Use Chrome', true); return pintarPush(); }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      aviso(perm === 'denied' ? 'Las notificaciones quedaron bloqueadas. Vea cómo permitirlas' : 'No se activaron las notificaciones', true);
+      return pintarPush();
+    }
+    await suscribir();
+    aviso('✅ Notificaciones activadas en este dispositivo');
+  } catch (e) { aviso('No se pudieron activar: ' + errMsg(e), true); }
+  pintarPush();
+}
+
+async function desactivarPush(){
+  try {
+    const reg = await regLista(), sub = reg && await reg.pushManager.getSubscription();
+    if (sub) { await sb.rpc('borrar_suscripcion', { p_endpoint:sub.endpoint }); await sub.unsubscribe(); }
+    aviso('Notificaciones desactivadas en este dispositivo');
+  } catch (e) { aviso(errMsg(e), true); }
+  pintarPush();
+}
+
+async function probarPush(btn){
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    if ((await estadoPush()) === 'activo') await suscribir();   // por si cambió de usuario en este celular
+    const { data, error } = await sb.functions.invoke('enviar-push', { body:{ accion:'prueba' } });
+    if (error) throw error;
+    if (data && data.enviados) aviso('Prueba enviada. Le debe llegar en unos segundos (puede bloquear el celular para probar)');
+    else aviso('No se pudo entregar la prueba. Desactive y vuelva a activar las notificaciones', true);
+  } catch (e) { aviso('No se pudo enviar la prueba: ' + errMsg(e), true); }
+  if (btn) { btn.disabled = false; btn.textContent = '🔔 Enviar prueba'; }
+}
+
+async function instalarApp(){
+  if (!P.instalar) return;
+  P.instalar.prompt();
+  try { await P.instalar.userChoice; } catch (e) {}
+  P.instalar = null; pintarPush();
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); P.instalar = e; pintarPush(); });
+window.addEventListener('appinstalled', () => { P.instalar = null; aviso('App instalada. Ábrala desde el ícono "Ama de Llaves"'); pintarPush(); });
+
+// Al entrar: si este dispositivo ya tenía permiso, queda a nombre de quien inició sesión
+async function prepararPush(){
+  await registrarSW();
+  try { if ((await estadoPush()) !== 'instalar' && pushSoportado() && Notification.permission === 'granted') await suscribir(); } catch (e) {}
+  pintarPush();
+}
+// Al cerrar sesión: este dispositivo deja de recibir los avisos de este usuario
+async function soltarPush(){
+  try {
+    const reg = P.reg && await regLista(), sub = reg && await reg.pushManager.getSubscription();
+    if (sub) await sb.rpc('borrar_suscripcion', { p_endpoint:sub.endpoint });
+  } catch (e) {}
+}
+
+const PASOS_IOS = `<ol class="push-pasos">
+    <li>Abra este sistema en <b>Safari</b>.</li>
+    <li>Toque el botón <b>Compartir</b> (el cuadro con la flecha hacia arriba ⬆️).</li>
+    <li>Elija <b>"Agregar a inicio"</b> y luego <b>Agregar</b>.</li>
+    <li>Abra la app desde el ícono <b>Ama de Llaves</b>, ingrese y toque <b>Activar notificaciones</b>.</li></ol>`;
+const PASOS_ANDROID_INSTALAR = `<ol class="push-pasos">
+    <li>En Chrome, toque el menú <b>⋮</b> (arriba a la derecha).</li>
+    <li>Elija <b>"Instalar app"</b> o <b>"Agregar a pantalla principal"</b>.</li></ol>`;
+const PASOS_BLOQUEADO = esIOS
+  ? `<ol class="push-pasos"><li>Abra <b>Ajustes</b> del iPhone → <b>Notificaciones</b>.</li><li>Busque <b>Ama de Llaves</b> y active <b>Permitir notificaciones</b>.</li></ol>`
+  : esAndroid
+  ? `<ol class="push-pasos"><li>Abra <b>Ajustes</b> del celular → <b>Aplicaciones</b> → <b>${instalada() ? 'Ama de Llaves' : 'Chrome'}</b> → <b>Notificaciones</b> y permítalas.</li>
+     ${instalada() ? '' : '<li>En Chrome, toque el ícono junto a la dirección de la página → <b>Permisos</b> → <b>Notificaciones</b> → <b>Permitir</b>.</li>'}
+     <li>Vuelva aquí y toque <b>Activar notificaciones</b>.</li></ol>`
+  : `<ol class="push-pasos"><li>Haga clic en el ícono junto a la dirección de la página → <b>Notificaciones</b> → <b>Permitir</b>.</li><li>Recargue la página.</li></ol>`;
+
+// Mensaje arriba de la pantalla y recuadro de "Mi cuenta"
+async function pintarPush(){
+  if (!S.perfil) return;
+  const est = await estadoPush();
+  const box = $('#push-aviso');
+  let html = '', mal = false;
+  if (est === 'instalar') html = `<div class="pa-ic">📲</div><div class="pa-tx"><b>Instale la app para recibir los avisos</b>
+      <p>En iPhone los avisos solo llegan con la app instalada en la pantalla de inicio.</p>${PASOS_IOS}
+      <div class="pa-ac"><button class="btn sec sm" data-pa="ocultar">Ahora no</button></div></div>`;
+  else if (est === 'inactivo') html = `<div class="pa-ic">🔔</div><div class="pa-tx"><b>Active las notificaciones en este ${esCelular ? 'celular' : 'equipo'}</b>
+      <p>Así le llegarán los reportes y sus cambios aunque el sistema esté cerrado o el celular bloqueado.</p>
+      <div class="pa-ac"><button class="btn sm" data-pa="activar">Activar notificaciones</button>
+      ${P.instalar && !instalada() ? '<button class="btn sec sm" data-pa="instalar">📲 Instalar app</button>' : ''}
+      <button class="btn sec sm" data-pa="ocultar">Ahora no</button></div></div>`;
+  else if (est === 'bloqueado') { mal = true; html = `<div class="pa-ic">🔕</div><div class="pa-tx"><b>Las notificaciones están bloqueadas</b>
+      <p>No le llegarán los avisos de reportes nuevos. Para permitirlas:</p>${PASOS_BLOQUEADO}
+      <div class="pa-ac"><button class="btn sm" data-pa="activar">Ya las permití</button><button class="btn sec sm" data-pa="ocultar">Ahora no</button></div></div>`; }
+  else if (est === 'no-soportado' && esIOS) { mal = true; html = `<div class="pa-ic">⚠️</div><div class="pa-tx"><b>Este iPhone no puede recibir los avisos</b>
+      <p>Actualice el iPhone a iOS 16.4 o más reciente (Ajustes → General → Actualización de software).</p>
+      <div class="pa-ac"><button class="btn sec sm" data-pa="ocultar">Entendido</button></div></div>`; }
+  else if (est === 'activo' && P.instalar && !instalada() && esCelular) html = `<div class="pa-ic">📲</div><div class="pa-tx"><b>Instale la app</b>
+      <p>Quedará en la pantalla de inicio y se abrirá como una app, sin la barra del navegador.</p>
+      <div class="pa-ac"><button class="btn sm" data-pa="instalar">Instalar app</button><button class="btn sec sm" data-pa="ocultar">Ahora no</button></div></div>`;
+  box.className = 'push-aviso' + (mal ? ' mal' : '') + (!html || P.oculto ? ' hidden' : '');
+  box.innerHTML = html;
+  pintarPushBox(est);
+}
+$('#push-aviso').addEventListener('click', e => {
+  const b = e.target.closest('[data-pa]'); if (!b) return;
+  if (b.dataset.pa === 'activar') activarPush();
+  if (b.dataset.pa === 'instalar') instalarApp();
+  if (b.dataset.pa === 'ocultar') { P.oculto = true; $('#push-aviso').classList.add('hidden'); }
+});
+
+function pintarPushBox(est){
+  const box = $('#pb'); if (!box) return;
+  const txt = {
+    activo:'<span class="pill on">Activas</span> Este dispositivo recibe los avisos aunque el sistema esté cerrado.',
+    inactivo:'<span class="pill off">Desactivadas</span> Este dispositivo no recibe avisos cuando el sistema está cerrado.',
+    bloqueado:'<span class="pill off">Bloqueadas</span> El permiso de notificaciones está bloqueado.' + PASOS_BLOQUEADO,
+    instalar:'<span class="pill off">Requiere instalar</span> En iPhone primero hay que instalar la app:' + PASOS_IOS,
+    'no-soportado':'<span class="pill off">No disponible</span> ' + (esIOS ? 'Actualice el iPhone a iOS 16.4 o más reciente.' : 'Este navegador no permite notificaciones. Use Chrome.')
+  }[est];
+  box.innerHTML = `<b>🔔 Notificaciones en este dispositivo</b><div class="pb-estado">${txt}</div>
+    <div class="pb-ac">
+      ${est === 'activo' ? '<button type="button" class="btn sm" data-pb="probar">🔔 Enviar prueba</button><button type="button" class="btn sec sm" data-pb="desactivar">Desactivar</button>' : ''}
+      ${est === 'inactivo' || est === 'bloqueado' ? '<button type="button" class="btn sm" data-pb="activar">Activar notificaciones</button>' : ''}
+      ${P.instalar && !instalada() ? '<button type="button" class="btn sec sm" data-pb="instalar">📲 Instalar app</button>' : ''}
+    </div>`;
+  box.onclick = e => {
+    const b = e.target.closest('[data-pb]'); if (!b) return;
+    ({ probar:() => probarPush(b), desactivar:desactivarPush, activar:activarPush, instalar:instalarApp })[b.dataset.pb]();
+  };
+}
+
+// Abrir el caso de una notificación tocada (o de un enlace ?caso=)
+function abrirCasoPush(id){
+  if (!id) return;
+  if (!S.perfil) { S.casoPendiente = id; return; }
+  const ids = S.notifs.filter(n => !n.leida && n.reporte_id === id).map(n => n.id);
+  if (ids.length) { S.notifs.forEach(n => { if (ids.includes(n.id)) n.leida = true; }); pintarCampana(); sb.rpc('marcar_leidas', { p_ids:ids }); }
+  if (S.alertaId) return;                                     // primero debe tocar "Abrir caso" en la alerta
+  if (S.forzadoId && S.forzadoId !== id) return aviso('Primero responda el caso que tiene abierto', true);
+  abrirDetalle(id);
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    const d = e.data || {};
+    if (d.tipo === 'abrir-caso') abrirCasoPush(+d.reporte_id);
+    if (d.tipo === 'push' && S.perfil) { cargarNotifs(); cargarActivos(); }
+  });
+}
+S.casoPendiente = +new URLSearchParams(location.search).get('caso') || null;
+if (S.casoPendiente) history.replaceState(null, '', location.pathname);
+
+/* =====================================================================
    MI CUENTA
    ===================================================================== */
 $('#b-cuenta').addEventListener('click', () => {
@@ -1586,8 +1836,10 @@ $('#b-cuenta').addEventListener('click', () => {
       <input class="inp" type="password" id="fc-p2" placeholder="Repita la contraseña" style="margin-top:8px" required autocomplete="new-password">
       <div class="err" id="fc-err"></div>
       <button class="btn block" type="submit">Guardar contraseña</button>
-      <button class="btn sec block" type="button" id="fc-salir" style="margin-top:10px">Cerrar sesión</button>
+      <div class="push-box" id="pb"><div class="loading" style="padding:6px">Revisando notificaciones…</div></div>
+      <button class="btn sec block" type="button" id="fc-salir" style="margin-top:16px">Cerrar sesión</button>
     </form>`, true);
+  pintarPush();
   $('#fc-salir').onclick = () => { cerrarModal(); salir(); };
   $('#fc').onsubmit = async e => {
     e.preventDefault();
@@ -1601,13 +1853,20 @@ $('#b-cuenta').addEventListener('click', () => {
 /* =====================================================================
    ARRANQUE
    ===================================================================== */
+registrarSW();
 if (!configurado) {
   $('#l-err').textContent = 'Falta configurar los datos de Supabase en el archivo index.html';
 } else {
   sb.auth.getSession().then(({ data }) => { if (data.session) iniciar(); });
   sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && S.perfil) { S.perfil = null; mostrarLogin(); } });
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.perfil && S.perfil.rol !== 'mucama') cargarActivos(); });
+// Al volver a la app (desbloquear el celular o regresar de otra app): poner todo al día
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !S.perfil) return;
+  cargarActivos(); cargarNotifs();
+  if (S.vista === 'mis') cargarMis(true);
+  pintarPush();
+});
 </script>
 </body>
 </html>
