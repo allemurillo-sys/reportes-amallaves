@@ -163,6 +163,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .matrix td,.matrix th{text-align:center}
 .matrix td:first-child,.matrix th:first-child{text-align:left}
 .yes{color:var(--listo);font-weight:700} .no{color:#c3c3c3}
+.matrix input.chk{width:20px;height:20px;accent-color:var(--listo);cursor:pointer;margin:0;vertical-align:middle}
+.matrix input.chk:disabled{opacity:.4;cursor:wait}
+.matrix .lock{font-size:10px;opacity:.55}
+.matrix tr.pers td{background:#fdf6ec}
+.t-pers{background:#fdf6ec;color:var(--accent);border:1px solid #f1dcbf}
+.nota-a{color:var(--muted);font-size:13px;margin:6px 0 0}
 .row-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .row-form .inp{flex:1;min-width:160px}
 
@@ -472,14 +478,11 @@ const DEP = { ama_llaves:'Ama de llaves', supervisora:'Supervisora', operaciones
 const DEP_PLURAL = { ama_llaves:'Ama de llaves', supervisora:'Supervisoras', operaciones:'Operaciones', mucama:'Mucamas', admin:'Administradores' };
 const DEP_FEM = { ama_llaves:true, supervisora:true, mucama:true, operaciones:false, admin:false };
 const DEP_COLOR = { ama_llaves:'var(--ama)', supervisora:'var(--sup)', operaciones:'var(--ops)', admin:'#4b2f86', mucama:'#1f7a68' };
-// Botones de "Dirigido a" que ve cada rol en Nuevo reporte (debe coincidir con la base de datos)
-const DESTINOS_ROL = {
-  admin:       ['ama_llaves', 'supervisora', 'operaciones', 'mucama', 'admin'],
-  ama_llaves:  ['mucama', 'supervisora', 'operaciones', 'admin'],
-  operaciones: ['ama_llaves', 'operaciones', 'mucama', 'admin'],
-  supervisora: ['ama_llaves', 'operaciones', 'mucama', 'admin'],
-  mucama:      ['ama_llaves', 'supervisora', 'operaciones']
-};
+// Autorizaciones: se editan en Mantenimiento › Autorizaciones (por rol) y en Usuarios › Permisos (por persona).
+// S.permisos trae las que tiene el usuario conectado (calculadas en la base de datos).
+const tengo = clave => S.permisos.has(clave);
+// Botones de "Dirigido a" que ve el usuario en Nuevo reporte
+const misDestinos = () => Object.keys(DEP).filter(d => tengo('dest:' + d));
 const DEST_CLS = { ama_llaves:'ama', supervisora:'sup', operaciones:'ops', mucama:'mucama', admin:'admin' };
 const RECORDATORIO_ADMIN = 60 * 60 * 1000;   // cada hora
 
@@ -490,10 +493,9 @@ const meAsignaron = r => asignadosDe(r).includes(S.user.id);
 const esDestinatario = r => asignadosDe(r).length ? meAsignaron(r) : S.perfil.rol === r.departamento;
 // ¿Puedo responder / cambiar el estado? (sin contar si el caso está en Pendiente Admin o Listo)
 function puedeResponder(r){
-  const rol = S.perfil.rol;
-  return rol === 'admin' || esDestinatario(r)
-    || (rol === 'ama_llaves' && (r.departamento === 'mucama' || r.departamento === 'supervisora'))
-    || (rol === 'supervisora' && r.departamento === 'mucama');
+  return tengo('responder_todo') || esDestinatario(r)
+    || (tengo('responder_mucamas') && r.departamento === 'mucama')
+    || (tengo('responder_supervisoras') && r.departamento === 'supervisora');
 }
 function listaNombres(ids, completo){
   const n = ids.map(nombre);
@@ -515,7 +517,8 @@ const sb = configurado ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
 const S = {
   user:null, perfil:null, perfiles:{}, propiedades:[], activos:[], offset:0,
   vista:null, canal:null, intervalos:[], alertaId:null, toastsVistos:new Set(),
-  fotosNuevas:[], mantTab:null, detalle:null, forzadoId:null, notifs:[], canalN:null
+  fotosNuevas:[], mantTab:null, detalle:null, forzadoId:null, notifs:[], canalN:null,
+  permisos:new Set(), permisosTxt:''
 };
 
 /* ---------- utilidades ---------- */
@@ -653,21 +656,39 @@ async function iniciarSesion(){
     if (hs) S.offset = new Date(hs) - Date.now();
   } catch (e) {}
 
-  await Promise.all([cargarPerfiles(), cargarPropiedades()]);
-  armarMenu();
-  $('#n-ver-estado').classList.toggle('hidden', perfil.rol !== 'mucama');
-  armarDestinos();
-  irA(perfil.rol === 'mucama' ? 'nuevo' : 'panel');
+  await Promise.all([cargarPerfiles(), cargarPropiedades(), cargarMisPermisos()]);
+  aplicarPermisos();
+  irA(vistaInicial());
   await Promise.all([cargarActivos(), cargarNotifs()]);
   conectarTiempoReal();
   prepararPush();
   if (S.casoPendiente) { const id = S.casoPendiente; S.casoPendiente = null; abrirCasoPush(id); }
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
-  S.intervalos.push(setInterval(() => { cargarActivos(); if (S.vista === 'mis') cargarMis(true); }, 60000));
+  S.intervalos.push(setInterval(async () => {
+    // Si un administrador cambió las autorizaciones de esta persona, se aplican solas (máximo 1 minuto)
+    if (await cargarMisPermisos()) { aplicarPermisos(); irA(S.vista && menuVistas().includes(S.vista) ? S.vista : vistaInicial()); }
+    cargarActivos(); if (S.vista === 'mis') cargarMis(true);
+  }, 60000));
   S.intervalos.push(setInterval(() => { if (S.alertaId) beep(); }, 12000));
-  if (perfil.rol === 'admin') { recordatorioAdmin(); S.intervalos.push(setInterval(recordatorioAdmin, RECORDATORIO_ADMIN)); }
+  recordatorioAdmin(); S.intervalos.push(setInterval(recordatorioAdmin, RECORDATORIO_ADMIN));
 }
+
+// Lee las autorizaciones del usuario conectado. Devuelve true si cambiaron.
+async function cargarMisPermisos(){
+  const { data, error } = await sb.rpc('mis_permisos');
+  if (error) return false;
+  const txt = (data || []).join(',');
+  if (txt === S.permisosTxt) return false;
+  S.permisosTxt = txt; S.permisos = new Set(data || []);
+  return true;
+}
+function aplicarPermisos(){
+  armarMenu();
+  $('#n-ver-estado').classList.toggle('hidden', tengo('panel'));
+  armarDestinos();
+}
+const vistaInicial = () => tengo('panel') ? 'panel' : tengo('crear_reportes') ? 'nuevo' : 'mis';
 
 function mostrarLogin(msg){
   clearTimeout(reintentoT);
@@ -676,7 +697,7 @@ function mostrarLogin(msg){
   if (S.canal) { sb.removeChannel(S.canal); S.canal = null; }
   if (S.canalN) { sb.removeChannel(S.canalN); S.canalN = null; }
   S.alertaId = null; S.toastsVistos.clear(); $('#toasts').innerHTML = '';
-  S.notifs = []; S.activos = [];
+  S.notifs = []; S.activos = []; S.permisos = new Set(); S.permisosTxt = '';
   P.oculto = false; $('#push-aviso').classList.add('hidden');
   try { if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); } catch (e) {}
   $('#alerta').classList.add('hidden'); cerrarModal(true);
@@ -705,17 +726,23 @@ async function cargarPropiedades(){
 /* =====================================================================
    MENÚ Y NAVEGACIÓN
    ===================================================================== */
+function menuItems(){
+  const items = [];
+  if (tengo('panel')) items.push(['panel','📊','Panel']);
+  if (tengo('crear_reportes')) items.push(['nuevo','➕','Nuevo reporte']);
+  if (!tengo('panel')) items.push(['mis','📋','Estado de casos']);
+  if (tengo('buscar_casos')) items.push(['historial','🔎','Buscar casos']);
+  if (tabsMant().length) items.push(['mant','⚙️','Mantenimiento']);
+  return items;
+}
+const menuVistas = () => menuItems().map(i => i[0]);
 function armarMenu(){
-  const r = S.perfil.rol;
-  const items = r === 'mucama'
-    ? [['nuevo','➕','Nuevo reporte'], ['mis','📋','Estado de casos']]
-    : [['panel','📊','Panel'], ['nuevo','➕','Nuevo reporte'], ['historial','🔎','Buscar casos']];
-  if (r === 'admin' || r === 'ama_llaves') items.push(['mant','⚙️','Mantenimiento']);
-  $('#menu').innerHTML = items.map(([v, ic, t]) => `<button data-vista="${v}"><span class="ic">${ic}</span>${t}</button>`).join('');
+  $('#menu').innerHTML = menuItems().map(([v, ic, t]) => `<button data-vista="${v}"><span class="ic">${ic}</span>${t}</button>`).join('');
 }
 $('#menu').addEventListener('click', e => { const b = e.target.closest('[data-vista]'); if (b) irA(b.dataset.vista); });
 
 function irA(v){
+  if (!menuVistas().includes(v)) v = vistaInicial();
   S.vista = v;
   $$('.view').forEach(s => s.classList.add('hidden'));
   $('#v-' + v).classList.remove('hidden');
@@ -798,53 +825,55 @@ function conectarTiempoReal(){
 /* =====================================================================
    ALERTAS DE REPORTE NUEVO
    ===================================================================== */
-// ¿Este reporte le genera la ventana de alerta obligatoria? (todos menos el administrador)
-const esParaMi = r => S.perfil.rol !== 'admin' && esDestinatario(r);
+// ¿Este reporte le genera la ventana de alerta obligatoria? (permiso "Alerta obligatoria")
+const esParaMi = r => tengo('alerta_obligatoria') && esDestinatario(r);
 
 function revisarAlertas(){
-  const rol = S.perfil.rol;
+  const obligatoria = tengo('alerta_obligatoria');
   // 1) Caso que el usuario abrió pero todavía no respondió: debe responderlo obligatoriamente
-  const pendiente = rol === 'admin' ? null
+  const pendiente = !obligatoria ? null
     : S.activos.find(r => r.estado === 'nuevo' && r.abierto_en && r.abierto_por === S.user.id && esDestinatario(r));
   if (pendiente) {
     ocultarAlerta();
     if (S.forzadoId !== pendiente.id) abrirDetalle(pendiente.id, true);
     document.title = 'Responda el caso ' + pendiente.numero_caso;
-    if (rol !== 'admin') return;
+    return;
   } else if (S.forzadoId) {
     const f = S.activos.find(r => r.id === S.forzadoId);
     if (f && f.estado === 'nuevo' && !f.abierto_en) {
       // Datos aún sin actualizar: se mantiene la ventana obligatoria
-      ocultarAlerta(); if (rol !== 'admin') return;
+      ocultarAlerta(); return;
     } else { S.forzadoId = null; cerrarModal(true); }
   }
   const sinAbrir = S.activos.filter(r => r.estado === 'nuevo' && !r.abierto_en)
                             .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
-  if (rol !== 'admin') {
-    const mios = sinAbrir.filter(esParaMi);
-    if (mios.length) mostrarAlerta(mios[0], mios.length); else ocultarAlerta();
-    document.title = mios.length ? `(${mios.length}) Nuevo reporte` : 'Reportes Ama de Llaves';
-  } else {
+  const mios = obligatoria ? sinAbrir.filter(esParaMi) : [];
+  if (mios.length) mostrarAlerta(mios[0], mios.length); else ocultarAlerta();
+
+  // Aviso (sin obligación) de todos los reportes nuevos
+  if (tengo('aviso_todos')) {
     const ids = new Set(sinAbrir.map(r => r.id));
     $$('#toasts .toast[data-tipo="nuevo"]').forEach(t => { if (!ids.has(+t.dataset.id)) t.remove(); });
-    sinAbrir.forEach(r => { if (!S.toastsVistos.has(r.id)) { S.toastsVistos.add(r.id); toastAdmin(r); } });
-    const mios = pendientesAdmin().length;
-    document.title = mios ? `(${mios}) Dirigidos a usted sin responder`
-      : sinAbrir.length ? `(${sinAbrir.length}) Reportes sin abrir` : 'Reportes Ama de Llaves';
-    pintarPendAdmin();
-  }
+    sinAbrir.forEach(r => { if (!S.toastsVistos.has(r.id) && !mios.includes(r)) { S.toastsVistos.add(r.id); toastAdmin(r); } });
+  } else $$('#toasts .toast[data-tipo="nuevo"]').forEach(t => t.remove());
+  pintarPendAdmin();
+
+  const sinResp = tengo('recordatorio_hora') ? pendientesAdmin().length : 0;
+  document.title = mios.length ? `(${mios.length}) Nuevo reporte`
+    : sinResp ? `(${sinResp}) Dirigidos a usted sin responder`
+    : tengo('aviso_todos') && sinAbrir.length ? `(${sinAbrir.length}) Reportes sin abrir` : 'Reportes Ama de Llaves';
 }
 
 /* ---------- Administrador: recordatorio suave de los casos dirigidos a él ---------- */
 const pendientesAdmin = () => S.activos.filter(r => r.estado === 'nuevo' && esDestinatario(r));
 function pintarPendAdmin(){
   const b = $('#b-pend'); if (!b) return;
-  const n = pendientesAdmin().length;
+  const n = tengo('recordatorio_hora') ? pendientesAdmin().length : 0;
   b.classList.toggle('hidden', !n);
   $('#pend-n').textContent = n;
 }
 function recordatorioAdmin(){
-  if (S.perfil?.rol !== 'admin') return;
+  if (!S.perfil || !tengo('recordatorio_hora')) return;
   const lista = pendientesAdmin(); if (!lista.length) return;
   $$('#toasts .toast[data-tipo="recordatorio"]').forEach(t => t.remove());
   const el = document.createElement('div');
@@ -1012,7 +1041,7 @@ const ACC = {
 
 // ¿Puede responder ahora? (Pendiente Admin y Listo quedan solo para administradores)
 function puedeAtender(r){
-  if (S.perfil.rol === 'admin') return true;
+  if (tengo('responder_todo')) return true;
   return puedeResponder(r) && r.estado !== 'pendiente_admin' && r.estado !== 'listo';
 }
 
@@ -1026,7 +1055,7 @@ async function abrirDetalle(id, forzado){
   ]);
   if (error || !r) { cerrarModal(true); return aviso('No se pudo cargar el caso', true); }
   // Primer ingreso de esta persona al caso: queda como "Visto" en la bitácora (sin avisos)
-  if (!(bit || []).some(b => b.usuario_id === S.user.id)) {
+  if (tengo('revisar_visto') && !(bit || []).some(b => b.usuario_id === S.user.id)) {
     const { error:ev } = await sb.rpc('registrar_visto', { p_id:id });
     if (!ev) ({ data:bit } = await cargarBit());
   }
@@ -1042,25 +1071,25 @@ async function abrirDetalle(id, forzado){
       .map(u => `<a href="${esc(u.signedUrl)}" target="_blank" rel="noopener"><img src="${esc(u.signedUrl)}" alt="Foto del reporte" loading="lazy"></a>`).join('')}</div>`;
   }
 
-  const rol = S.perfil.rol, botones = [];
+  const todo = tengo('responder_todo'), botones = [];
   if (puedeAtender(r)) {
     if (forzado) botones.push('listo', 'en_proceso', 'pendiente_admin');
     else if (r.estado !== 'listo')
       ['listo', 'en_proceso', 'revisado_pendiente', 'pendiente_admin'].forEach(e => { if (e !== r.estado) botones.push(e); });
-    else if (rol === 'admin') botones.push('reabrir');
+    else if (todo) botones.push('reabrir');
   }
-  if (!forzado && (rol !== 'mucama' || puedeAtender(r))) botones.push('nota');
+  if (!forzado && (tengo('agregar_notas') || puedeAtender(r))) botones.push('nota');
   const reclasif = puedeAtender(r) && r.estado !== 'listo';
 
   let aviso2 = '';
   const mioDep = esDestinatario(r);
-  if (rol !== 'admin' && !mioDep && puedeResponder(r) && r.estado !== 'listo' && r.estado !== 'pendiente_admin')
+  if (!todo && !mioDep && puedeResponder(r) && r.estado !== 'listo' && r.estado !== 'pendiente_admin')
     aviso2 = `<div class="auto-note">ℹ️ Este caso es de ${esc(depTxt(r))}. Usted puede responderlo si la persona asignada no puede; si solo lo revisa, queda registrado como visto.</div>`;
-  else if (rol !== 'admin' && rol !== 'mucama' && !puedeResponder(r))
+  else if (!todo && tengo('agregar_notas') && !puedeResponder(r))
     aviso2 = `<div class="auto-note">ℹ️ Este caso es de ${esc(depTxt(r))}; usted puede verlo y agregar notas.</div>`;
-  if (rol !== 'admin' && r.estado === 'pendiente_admin' && puedeResponder(r))
+  if (!todo && r.estado === 'pendiente_admin' && puedeResponder(r))
     aviso2 = `<div class="auto-note">ℹ️ Caso escalado: está en manos de los administradores.</div>`;
-  if (rol === 'admin' && !mioDep && r.estado === 'nuevo')
+  if (todo && !mioDep && r.estado === 'nuevo')
     aviso2 = `<div class="auto-note">ℹ️ Este caso no está dirigido a usted: puede revisarlo sin responder y no cambia su estado. Si lo necesita, también puede responderlo.</div>`;
   if (r.estado !== 'listo' && !forzado)
     aviso2 += `<div class="auto-note">⏳ Caso activo: permanece pendiente hasta que se marque como <b>Listo</b>.</div>`;
@@ -1219,8 +1248,12 @@ function activarSelector(box){
 const seleccionados = box => [...box.querySelectorAll('[data-pick] input:checked')].map(c => c.value);
 
 function armarDestinos(){
-  const ops = DESTINOS_ROL[S.perfil.rol] || [];
-  $('#n-destinos').className = 'seg c' + ops.length;
+  const ops = misDestinos();
+  $('#n-destinos').className = 'seg c' + Math.max(1, Math.min(ops.length, 5));
+  if (!ops.length) {
+    $('#n-destinos').innerHTML = '<div class="auto-note">Su usuario no tiene destinos habilitados en "Dirigido a". Consulte al administrador.</div>';
+    return pintarSelectorNuevo();
+  }
   $('#n-destinos').innerHTML = ops.map((v, i) =>
     `<input type="radio" name="n-dep" id="d-${v}" value="${v}" ${i === 0 ? 'required' : ''}><label for="d-${v}" class="lbl-${DEST_CLS[v]}">${DEP[v]}</label>`).join('');
   pintarSelectorNuevo();
@@ -1377,11 +1410,16 @@ $('#f-hist').addEventListener('submit', buscarHistorial);
 /* =====================================================================
    MANTENIMIENTO
    ===================================================================== */
+function tabsMant(){
+  const tabs = [];
+  if (tengo('usuarios')) tabs.push(['usuarios','👥 Usuarios'], ['autorizaciones','🔐 Autorizaciones']);
+  if (tengo('propiedades_editar') || tengo('propiedades_eliminar')) tabs.push(['propiedades','🏠 Propiedades']);
+  if (tengo('respaldo_excel')) tabs.push(['respaldo','💾 Respaldo Excel']);
+  return tabs;
+}
 function armarMant(){
-  const admin = S.perfil.rol === 'admin';
-  const tabs = admin
-    ? [['usuarios','👥 Usuarios'], ['autorizaciones','🔐 Autorizaciones'], ['propiedades','🏠 Propiedades'], ['respaldo','💾 Respaldo Excel']]
-    : [['propiedades','🏠 Propiedades']];
+  const tabs = tabsMant();
+  if (!tabs.length) return irA(vistaInicial());
   if (!tabs.some(t => t[0] === S.mantTab)) S.mantTab = tabs[0][0];
   $('#mant-tabs').innerHTML = tabs.map(([k, t]) => `<button data-tab="${k}" class="${k === S.mantTab ? 'on' : ''}">${t}</button>`).join('');
   ({ usuarios:mUsuarios, autorizaciones:mAutorizaciones, propiedades:mPropiedades, respaldo:mRespaldo })[S.mantTab]();
@@ -1390,18 +1428,22 @@ $('#mant-tabs').addEventListener('click', e => { const b = e.target.closest('[da
 
 /* ---------- Usuarios ---------- */
 async function mUsuarios(){
-  await cargarPerfiles();
+  await Promise.all([cargarPerfiles(), cargarAutorizaciones()]);
   const lista = Object.values(S.perfiles).sort((a, b) => a.nombre.localeCompare(b.nombre));
   $('#mant-body').innerHTML = `
     <div class="view-title" style="margin-top:0"><h3>Usuarios</h3><button class="btn" id="u-nuevo">+ Nuevo usuario</button></div>
+    <p class="nota-a">Cada usuario nuevo recibe los permisos de su rol. Después puede ajustarlos a esa persona con el botón <b>Permisos</b>.</p>
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
     ${lista.map(p => `<tr>
-      <td><b>${esc(p.nombre)}</b></td><td>${esc(p.usuario)}</td><td>${ROL[p.rol]}</td>
+      <td><b>${esc(p.nombre)}</b></td><td>${esc(p.usuario)}</td>
+      <td>${ROL[p.rol]}${nAjustes(p.id) ? `<br><span class="tag t-pers">Personalizado (${nAjustes(p.id)})</span>` : ''}</td>
       <td>${p.activo ? '<span class="tag t-listo">Activo</span>' : '<span class="tag">Inactivo</span>'}</td>
-      <td style="text-align:right"><button class="btn sec sm" data-editu="${p.id}">Editar</button></td></tr>`).join('')}
+      <td style="text-align:right;white-space:nowrap"><button class="btn sec sm" data-editu="${p.id}">Editar</button>
+        <button class="btn sec sm" data-permu="${p.id}">Permisos</button></td></tr>`).join('')}
     </tbody></table></div>`;
   $('#u-nuevo').onclick = () => formUsuario();
   $$('[data-editu]').forEach(b => b.onclick = () => formUsuario(S.perfiles[b.dataset.editu]));
+  $$('[data-permu]').forEach(b => b.onclick = () => formPermisos(S.perfiles[b.dataset.permu]));
 }
 
 function opcionesRol(sel){ return Object.entries(ROL).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join(''); }
@@ -1429,6 +1471,9 @@ function formUsuario(p){
       // Aviso si el usuario tiene casos activos y se desactiva o cambia de rol
       const pierde = $('#fu-activo').value !== '1' || $('#fu-rol').value !== p.rol;
       const pend = S.activos.filter(r => asignadosDe(r).includes(p.id));
+      if ($('#fu-rol').value !== p.rol && nAjustes(p.id) && !confirm(`${p.nombre} tiene permisos personalizados. Al cambiarle el rol se borran y recibe los del nuevo rol.\n\n¿Continuar?`)) {
+        btn.disabled = false; return;
+      }
       if (pierde && pend.length && !confirm(`${p.nombre} tiene ${pend.length} caso(s) activo(s) dirigidos a su nombre (${pend.slice(0, 5).map(r => r.numero_caso).join(', ')}${pend.length > 5 ? '…' : ''}).\n\nSi lo desactiva o le cambia el rol, ya no podrá atenderlos. Conviene reclasificarlos a otra persona.\n\n¿Desea guardar el cambio de todas formas?`)) {
         btn.disabled = false; return;
       }
@@ -1444,66 +1489,162 @@ function formUsuario(p){
 }
 
 /* ---------- Autorizaciones ---------- */
-const PERMISOS = [
-  //                                                              Admin Ama  Sup  Ops  Mucama
-  ['Crear reportes',                                               1, 1, 1, 1, 1],
-  ['Ver los reportes que creó o que le dirigieron',                1, 1, 1, 1, 1],
-  ['Ver todos los reportes en el panel',                           1, 0, 0, 1, 0],
-  ['Ver los reportes de mucamas (creados o dirigidos a ellas)',    1, 1, 1, 1, 0],
-  ['Ver los reportes de supervisoras',                             1, 1, 1, 1, 0],
-  ['Alerta obligatoria de los reportes dirigidos a usted',         0, 1, 1, 1, 1],
-  ['Recordatorio cada hora de los reportes dirigidos a usted',     1, 0, 0, 0, 0],
-  ['Aviso de todos los reportes nuevos (sin obligación)',          1, 0, 0, 0, 0],
-  ['Campana: nuevos y cambios de estado de casos de mucamas',      0, 1, 1, 0, 0],
-  ['Campana: nuevos y cambios de estado de casos de supervisoras', 0, 1, 0, 0, 0],
-  ['Responder los reportes dirigidos a usted',                     1, 1, 1, 1, 1],
-  ['Responder casos de mucamas (si la mucama no puede)',           1, 1, 1, 0, 0],
-  ['Responder casos de supervisoras (si la supervisora no puede)', 1, 1, 0, 0, 0],
-  ['Responder cualquier caso, Pendiente Admin y reabrir',          1, 0, 0, 0, 0],
-  ['Revisar un caso sin responder (queda como "Visto")',           1, 1, 1, 1, 1],
-  ['Agregar notas a los casos que puede ver',                      1, 1, 1, 1, 0],
-  ['Buscar casos resueltos',                                       1, 1, 1, 1, 0],
-  ['Crear y modificar propiedades',                                1, 1, 0, 0, 0],
-  ['Eliminar propiedades',                                         1, 0, 0, 0, 0],
-  ['Usuarios y autorizaciones',                                    1, 0, 0, 0, 0],
-  ['Descargar respaldo en Excel',                                  1, 0, 0, 0, 0]
-];
+// Todo sale de la base de datos: permisos_catalogo (lista), permisos_rol (plantilla de cada rol)
+// y permisos_usuario (ajustes de una persona). Solo un administrador puede cambiarlo.
+const ROLES = ['admin', 'ama_llaves', 'supervisora', 'operaciones', 'mucama'];
+const A = { cat:[], rol:{}, usu:{} };   // rol[rol][clave] = bool · usu[usuario_id][clave] = bool
+
+async function cargarAutorizaciones(){
+  const [c, r, u] = await Promise.all([
+    sb.from('permisos_catalogo').select('*').order('grupo').order('orden'),
+    sb.from('permisos_rol').select('*'),
+    sb.from('permisos_usuario').select('*')
+  ]);
+  const err = c.error || r.error || u.error;
+  if (err) { aviso(errMsg(err), true); return false; }
+  A.cat = c.data; A.rol = {}; A.usu = {};
+  ROLES.forEach(x => A.rol[x] = {});
+  r.data.forEach(x => (A.rol[x.rol] = A.rol[x.rol] || {})[x.clave] = x.permitido);
+  u.data.forEach(x => (A.usu[x.usuario_id] = A.usu[x.usuario_id] || {})[x.clave] = x.permitido);
+  return true;
+}
+const catPermisos = () => A.cat.filter(c => c.grupo === 'permiso');
+const catDestinos = () => A.cat.filter(c => c.grupo === 'destino');
+// ¿Se puede cambiar esta casilla para este rol? Si no, devuelve el valor fijo (true/false)
+function valorFijo(c, rol){
+  if (c.fijo === 'todos') return true;
+  if (c.fijo === 'solo_admin') return rol === 'admin';
+  if (c.fijo === 'admin' && rol === 'admin') return true;
+  return null;
+}
+const segunRol = (c, rol) => valorFijo(c, rol) ?? !!A.rol[rol]?.[c.clave];
+function valorPersona(c, p){
+  const f = valorFijo(c, p.rol); if (f !== null) return f;
+  const aj = A.usu[p.id]?.[c.clave];
+  return aj === undefined ? segunRol(c, p.rol) : aj;
+}
+const nAjustes = id => Object.keys(A.usu[id] || {}).length;
+const celdaFija = v => v ? '<td class="yes" title="Fijo, no se puede cambiar">✔ <span class="lock">🔒</span></td>' : '<td class="no" title="Fijo, no se puede cambiar">— <span class="lock">🔒</span></td>';
+const celdaRol = (c, rol) => valorFijo(c, rol) !== null ? celdaFija(valorFijo(c, rol))
+  : `<td><input type="checkbox" class="chk" data-rol="${rol}" data-clave="${esc(c.clave)}" ${segunRol(c, rol) ? 'checked' : ''}
+       aria-label="${esc(c.nombre)} · ${esc(ROL[rol])}"></td>`;
+
 async function mAutorizaciones(){
+  $('#mant-body').innerHTML = '<div class="loading">Cargando…</div>';
   await cargarPerfiles();
+  if (!(await cargarAutorizaciones())) return;
   const lista = Object.values(S.perfiles).sort((a, b) => a.nombre.localeCompare(b.nombre));
   $('#mant-body').innerHTML = `
     <h3>Accesos por rol</h3>
-    <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Permiso</th><th>Administrador</th><th>Ama de llaves</th><th>Supervisora</th><th>Operaciones</th><th>Mucama</th></tr></thead><tbody>
-      ${PERMISOS.map(([t, ...v]) => `<tr><td>${t}</td>${v.map(x => x ? '<td class="yes">✔</td>' : '<td class="no">—</td>').join('')}</tr>`).join('')}
+    <p class="nota-a">Marque o desmarque una casilla y se guarda al instante para <b>todas las personas de ese rol</b>
+      (excepto lo que se haya ajustado a una persona en <b>Permisos</b>). En cada celular o computadora se aplica en máximo 1 minuto.
+      Las casillas con 🔒 son fijas.</p>
+    <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Permiso</th>${ROLES.map(r => `<th>${ROL[r]}</th>`).join('')}</tr></thead><tbody>
+      ${catPermisos().map(c => `<tr><td>${esc(c.nombre)}</td>${ROLES.map(r => celdaRol(c, r)).join('')}</tr>`).join('')}
     </tbody></table></div>
     <h3>Botones de "Dirigido a" por rol</h3>
-    <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Quien reporta</th>${Object.values(DEP).map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>
-      ${Object.keys(ROL).map(r => `<tr><td>${ROL[r]}</td>${Object.keys(DEP).map(d => (DESTINOS_ROL[r] || []).includes(d) ? '<td class="yes">✔</td>' : '<td class="no">—</td>').join('')}</tr>`).join('')}
+    <p class="nota-a">A quién puede dirigir un reporte cada rol (los botones que ve en <b>Nuevo reporte</b>).</p>
+    <div class="tbl-wrap" style="margin:10px 0 24px"><table class="tbl matrix"><thead><tr><th>Quien reporta</th>${catDestinos().map(d => `<th>${esc(d.nombre)}</th>`).join('')}</tr></thead><tbody>
+      ${ROLES.map(r => `<tr><td>${ROL[r]}</td>${catDestinos().map(c => celdaRol(c, r)).join('')}</tr>`).join('')}
     </tbody></table></div>
     <h3>Asignar rol a cada usuario</h3>
+    <p class="nota-a">Al cambiar el rol de una persona, sus permisos individuales se borran y recibe los de su nuevo rol.</p>
     <div class="tbl-wrap" style="margin-top:10px"><table class="tbl"><thead><tr><th>Usuario</th><th>Rol</th><th></th></tr></thead><tbody>
-      ${lista.map(p => `<tr><td><b>${esc(p.nombre)}</b><br><small style="color:var(--muted)">${esc(p.usuario)}${p.activo ? '' : ' · inactivo'}</small></td>
+      ${lista.map(p => `<tr><td><b>${esc(p.nombre)}</b><br><small style="color:var(--muted)">${esc(p.usuario)}${p.activo ? '' : ' · inactivo'}</small>
+          ${nAjustes(p.id) ? `<br><span class="tag t-pers">Permisos personalizados (${nAjustes(p.id)})</span>` : ''}</td>
         <td><select class="inp" data-rolsel="${p.id}" style="min-width:160px">${opcionesRol(p.rol)}</select></td>
-        <td style="text-align:right"><button class="btn sm" data-rolsave="${p.id}">Guardar</button></td></tr>`).join('')}
+        <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-rolsave="${p.id}">Guardar</button>
+          <button class="btn sec sm" data-permu="${p.id}">Permisos</button></td></tr>`).join('')}
     </tbody></table></div>`;
+
+  $$('#mant-body input.chk').forEach(ch => ch.onchange = async () => {
+    ch.disabled = true;
+    const { error } = await sb.rpc('admin_permiso_rol', { p_rol:ch.dataset.rol, p_clave:ch.dataset.clave, p_permitido:ch.checked });
+    ch.disabled = false;
+    if (error) { ch.checked = !ch.checked; return aviso(errMsg(error), true); }
+    A.rol[ch.dataset.rol][ch.dataset.clave] = ch.checked;
+    aviso(`Guardado para ${ROL[ch.dataset.rol]}`);
+    refrescarMisPermisos();
+  });
+  $$('[data-permu]').forEach(b => b.onclick = () => formPermisos(S.perfiles[b.dataset.permu]));
   $$('[data-rolsave]').forEach(b => b.onclick = async () => {
     const p = S.perfiles[b.dataset.rolsave];
     const rol = document.querySelector(`[data-rolsel="${p.id}"]`).value;
+    if (rol === p.rol) return aviso('El rol no cambió');
     const pend = S.activos.filter(r => asignadosDe(r).includes(p.id));
-    if (rol !== p.rol && pend.length && !confirm(`${p.nombre} tiene ${pend.length} caso(s) activo(s) dirigidos a su nombre. Si le cambia el rol, ya no podrá atenderlos.\n\n¿Desea guardar el cambio de todas formas?`)) return;
+    if (pend.length && !confirm(`${p.nombre} tiene ${pend.length} caso(s) activo(s) dirigidos a su nombre. Si le cambia el rol, ya no podrá atenderlos.\n\n¿Desea guardar el cambio de todas formas?`)) return;
+    if (nAjustes(p.id) && !confirm(`${p.nombre} tiene permisos personalizados. Al cambiarle el rol se borran y recibe los del nuevo rol.\n\n¿Continuar?`)) return;
     const { error } = await sb.rpc('admin_actualizar_usuario', { p_id:p.id, p_nombre:p.nombre, p_rol:rol, p_activo:p.activo });
     if (error) return aviso(errMsg(error), true);
-    aviso('Autorización actualizada'); mAutorizaciones();
+    aviso('Autorización actualizada'); refrescarMisPermisos(); mAutorizaciones();
   });
+}
+
+// Si el administrador se cambia algo a sí mismo, se aplica de inmediato en su pantalla
+async function refrescarMisPermisos(){
+  if (await cargarMisPermisos()) { aplicarPermisos(); $$('#menu button').forEach(b => b.classList.toggle('on', b.dataset.vista === S.vista)); }
+}
+
+/* ---------- Permisos de una persona (ajustes sobre su rol) ---------- */
+async function formPermisos(p){
+  if (!A.cat.length && !(await cargarAutorizaciones())) return;
+  const ajustes = { ...(A.usu[p.id] || {}) };   // solo las diferencias con su rol
+  const filas = lista => lista.map(c => {
+    const f = valorFijo(c, p.rol), base = segunRol(c, p.rol);
+    const val = f !== null ? f : (ajustes[c.clave] ?? base);
+    const pers = f === null && val !== base;
+    return `<tr class="${pers ? 'pers' : ''}"><td>${esc(c.nombre)}${pers ? ' <span class="tag t-pers">Personalizado</span>' : ''}</td>
+      <td>${base ? '<span class="yes">✔</span>' : '<span class="no">—</span>'}</td>
+      ${f !== null ? celdaFija(f) : `<td><input type="checkbox" class="chk" data-pclave="${esc(c.clave)}" ${val ? 'checked' : ''} aria-label="${esc(c.nombre)}"></td>`}
+    </tr>`;
+  }).join('');
+  const pintar = () => {
+    const n = Object.keys(ajustes).length;
+    $('#fpu-cuerpo').innerHTML = `
+      <div class="tbl-wrap"><table class="tbl matrix"><thead><tr><th>Permiso</th><th>Según su rol</th><th>Esta persona</th></tr></thead>
+        <tbody>${filas(catPermisos())}</tbody></table></div>
+      <div class="sec-t">Botones de "Dirigido a"</div>
+      <div class="tbl-wrap"><table class="tbl matrix"><thead><tr><th>Puede dirigir reportes a</th><th>Según su rol</th><th>Esta persona</th></tr></thead>
+        <tbody>${filas(catDestinos())}</tbody></table></div>
+      <div class="auto-note" style="margin-top:12px">${n ? `Tiene <b>${n}</b> permiso(s) distinto(s) a su rol.` : 'Tiene exactamente los permisos de su rol.'}</div>`;
+    $$('#fpu-cuerpo input[data-pclave]').forEach(ch => ch.onchange = () => {
+      const c = A.cat.find(x => x.clave === ch.dataset.pclave);
+      if (ch.checked === segunRol(c, p.rol)) delete ajustes[c.clave]; else ajustes[c.clave] = ch.checked;
+      pintar();
+    });
+    $('#fpu-reset').disabled = !n;
+  };
+  if (!abrirModal(`<div class="m-head"><div><h3>Permisos de ${esc(p.nombre)}</h3>
+      <div style="color:var(--muted);font-size:13px">${esc(p.usuario)} · Rol: ${ROL[p.rol]}</div></div><button class="x" data-x>✕</button></div>
+    <div class="m-body">
+      <p class="nota-a" style="margin-top:0">Parte de los permisos de su rol. Marque o desmarque lo que esta persona necesite distinto; los cambios aplican solo a ella.</p>
+      <div id="fpu-cuerpo"></div>
+      <div class="err" id="fpu-err"></div>
+      <div class="acciones" style="justify-content:flex-end;margin-top:8px">
+        <button class="btn sec" id="fpu-reset" type="button">↺ Dejar igual que su rol</button>
+        <button class="btn" id="fpu-guardar" type="button">Guardar permisos</button>
+      </div>
+    </div>`)) return;
+  pintar();
+  $('#fpu-reset').onclick = () => { Object.keys(ajustes).forEach(k => delete ajustes[k]); pintar(); };
+  $('#fpu-guardar').onclick = async e => {
+    e.target.disabled = true;
+    const { error } = await sb.rpc('admin_permisos_usuario', { p_id:p.id, p_ajustes:ajustes });
+    e.target.disabled = false;
+    if (error) return $('#fpu-err').textContent = errMsg(error);
+    A.usu[p.id] = { ...ajustes };
+    cerrarModal(); aviso('Permisos guardados'); refrescarMisPermisos();
+    if (S.mantTab === 'autorizaciones') mAutorizaciones(); else if (S.mantTab === 'usuarios') mUsuarios();
+  };
 }
 
 /* ---------- Propiedades ---------- */
 async function mPropiedades(){
   await cargarPropiedades();
-  const admin = S.perfil.rol === 'admin';
+  const admin = tengo('propiedades_eliminar'), editar = tengo('propiedades_editar');
   $('#mant-body').innerHTML = `
     <h3>Propiedades</h3>
-    <form class="row-form" id="fp" style="margin-top:12px">
+    <form class="row-form ${editar ? '' : 'hidden'}" id="fp" style="margin-top:12px">
       <input class="inp" id="fp-nombre" placeholder="Nombre de la propiedad" required>
       <input class="inp" id="fp-desc" placeholder="Descripción o ubicación (opcional)">
       <button class="btn" type="submit">+ Agregar</button>
@@ -1513,8 +1654,8 @@ async function mPropiedades(){
       <td><b>${esc(p.nombre)}</b></td><td>${esc(p.descripcion || '')}</td>
       <td>${p.activa ? '<span class="tag t-listo">Activa</span>' : '<span class="tag">Inactiva</span>'}</td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn sec sm" data-pedit="${p.id}">Editar</button>
-        <button class="btn sec sm" data-ptog="${p.id}">${p.activa ? 'Desactivar' : 'Activar'}</button>
+        ${editar ? `<button class="btn sec sm" data-pedit="${p.id}">Editar</button>
+        <button class="btn sec sm" data-ptog="${p.id}">${p.activa ? 'Desactivar' : 'Activar'}</button>` : ''}
         ${admin ? `<button class="btn danger sm" data-pdel="${p.id}">Eliminar</button>` : ''}
       </td></tr>`).join('') : '<tr><td colspan="4" class="loading">Aún no hay propiedades</td></tr>'}
     </tbody></table></div>
