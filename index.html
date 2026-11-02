@@ -1415,6 +1415,7 @@ function tabsMant(){
   if (tengo('usuarios')) tabs.push(['usuarios','👥 Usuarios'], ['autorizaciones','🔐 Autorizaciones']);
   if (tengo('propiedades_editar') || tengo('propiedades_eliminar')) tabs.push(['propiedades','🏠 Propiedades']);
   if (tengo('respaldo_excel')) tabs.push(['respaldo','💾 Respaldo Excel']);
+  if (S.perfil?.rol === 'admin') tabs.push(['telegram','📨 Telegram']);
   return tabs;
 }
 function armarMant(){
@@ -1422,7 +1423,7 @@ function armarMant(){
   if (!tabs.length) return irA(vistaInicial());
   if (!tabs.some(t => t[0] === S.mantTab)) S.mantTab = tabs[0][0];
   $('#mant-tabs').innerHTML = tabs.map(([k, t]) => `<button data-tab="${k}" class="${k === S.mantTab ? 'on' : ''}">${t}</button>`).join('');
-  ({ usuarios:mUsuarios, autorizaciones:mAutorizaciones, propiedades:mPropiedades, respaldo:mRespaldo })[S.mantTab]();
+  ({ usuarios:mUsuarios, autorizaciones:mAutorizaciones, propiedades:mPropiedades, respaldo:mRespaldo, telegram:mTelegram })[S.mantTab]();
 }
 $('#mant-tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { S.mantTab = b.dataset.tab; armarMant(); } });
 
@@ -1993,6 +1994,228 @@ S.casoPendiente = +new URLSearchParams(location.search).get('caso') || null;
 if (S.casoPendiente) history.replaceState(null, '', location.pathname);
 
 /* =====================================================================
+   TELEGRAM — alertas en tiempo real (el sistema sigue siendo el centro:
+   desde Telegram solo se confirma "Lo vi" o "Tomar caso"; la respuesta y
+   el cierre siempre se hacen aquí)
+   ===================================================================== */
+const TG = { cfg:null };
+async function tgAdmin(accion, extra){
+  const { data, error } = await sb.functions.invoke('telegram-admin', { body:{ accion, ...(extra || {}) } });
+  if (error) return { ok:false, error:errMsg(error) };
+  return data || { ok:false, error:'Sin respuesta' };
+}
+async function cargarTgConfig(){
+  const { data } = await sb.from('telegram_config').select('*').eq('id', 1).maybeSingle();
+  TG.cfg = data; return data;
+}
+
+/* ---------- Mantenimiento › Telegram (solo Administrador) ---------- */
+async function mTelegram(){
+  $('#mant-body').innerHTML = '<div class="loading">Cargando configuración de Telegram…</div>';
+  const [cfg, est, esc_] = await Promise.all([
+    cargarTgConfig(), tgAdmin('estado'),
+    sb.from('telegram_escalamiento').select('*').then(r => r.data || [])
+  ]);
+  if (!cfg) { $('#mant-body').innerHTML = '<p class="err">No se encontró la configuración de Telegram en la base de datos.</p>'; return; }
+  const ok = est.ok ? est : { usuarios:[] };
+  const listo = ok.tiene_token && ok.grupo_conectado;
+  const pill = (b, si, no) => b ? `<span class="pill on">${si}</span>` : `<span class="pill off">${no}</span>`;
+  const hhmm = t => String(t || '').slice(0, 5);
+  const urlApp = cfg.app_url || (location.origin + location.pathname);
+  const vinc = ok.usuarios.filter(u => u.vinculado && !u.pendiente_reconectar).length;
+  const escRol = r => (esc_.find(x => x.rol === r)?.escala_a || []);
+
+  $('#mant-body').innerHTML = `
+    <div class="view-title" style="margin-top:0"><h3>Telegram</h3></div>
+    <p class="nota-a">Telegram solo avisa e insiste. La respuesta obligatoria y el cierre de cada caso siempre se hacen en este sistema.</p>
+    ${est.ok ? '' : `<p class="err">${esc(est.error || 'No se pudo consultar el estado del bot')}</p>`}
+
+    <div class="push-box">
+      <b>1. Interruptor</b>
+      <div class="pb-estado">${pill(cfg.activo, 'Encendido', 'Apagado')}
+        ${cfg.activo ? ' Las alertas se están enviando al grupo.' : ' No se envía nada a Telegram. El sistema funciona igual que siempre.'}
+        <br><span style="font-size:13px;color:var(--muted)">Modo: <b>${cfg.modo === 'produccion' ? 'Producción' : 'Piloto (prueba)'}</b></span></div>
+      <div class="pb-ac">
+        ${cfg.activo
+          ? '<button type="button" class="btn sec sm" id="tg-off">Apagar Telegram</button>'
+          : `<button type="button" class="btn sm" id="tg-on" ${listo ? '' : 'disabled title="Primero conecte el bot y el grupo"'}>Encender Telegram</button>`}
+      </div>
+    </div>
+
+    <div class="push-box">
+      <b>2. Bot</b>
+      <div class="pb-estado">${pill(ok.tiene_token, 'Conectado', 'Sin bot')}
+        ${ok.bot_username ? ` <b>@${esc(ok.bot_username)}</b>` : ' Pegue la clave que le dio @BotFather.'}
+        ${ok.tiene_token && ok.webhook_error ? `<div class="err">Telegram reporta: ${esc(ok.webhook_error)}</div>` : ''}</div>
+      <div class="row-form" style="margin-bottom:6px">
+        <input class="inp" id="tg-token" type="password" autocomplete="off" placeholder="${ok.tiene_token ? 'Pegue una clave nueva solo si va a cambiar de bot' : 'Clave del bot (ej. 123456789:AAH…)'}">
+        <button type="button" class="btn sm" id="tg-guardar-token">${ok.tiene_token ? 'Cambiar bot' : 'Conectar bot'}</button>
+      </div>
+      <div class="err" id="tg-token-err"></div>
+      ${ok.tiene_token ? '<button type="button" class="btn sec sm" id="tg-quitar">Quitar bot</button>' : ''}
+    </div>
+
+    <div class="push-box">
+      <b>3. Grupo</b>
+      <div class="pb-estado">${pill(ok.grupo_conectado, 'Registrado', 'Sin grupo')}
+        ${ok.grupo_conectado ? ` <b>${esc(ok.grupo_nombre || '')}</b>` : ''}</div>
+      ${ok.grupo_conectado ? '' : `<p class="nota-a" style="margin:0 0 10px">Agregue el bot${ok.bot_username ? ` <b>@${esc(ok.bot_username)}</b>` : ''} al grupo <b>Limpieza HV</b> como administrador. Luego, con su cuenta ya conectada (ver “Mi cuenta”), escriba dentro del grupo: <b>/registrar_grupo</b></p>`}
+      <div class="pb-ac">
+        <button type="button" class="btn sm" id="tg-probar" ${listo ? '' : 'disabled'}>🧪 Probar conexión</button>
+        <button type="button" class="btn sec sm" id="tg-recargar">Actualizar estado</button>
+      </div>
+    </div>
+
+    <div class="push-box">
+      <b>4. Tiempos y resúmenes</b>
+      <form id="tg-cfg">
+        <div class="row-form" style="margin:10px 0 0">
+          <div style="flex:1;min-width:150px"><label class="f" style="margin-top:0">Repetir la alerta cada (min)</label><input class="inp" type="number" min="1" max="60" id="tg-rep" value="${cfg.repetir_cada_min}"></div>
+          <div style="flex:1;min-width:150px"><label class="f" style="margin-top:0">Escalar a los superiores a los (min)</label><input class="inp" type="number" min="1" max="240" id="tg-escl" value="${cfg.escalar_a_min}"></div>
+        </div>
+        <div class="row-form" style="margin:0">
+          <div style="flex:1;min-width:150px"><label class="f">Resumen de la mañana</label><input class="inp" type="time" id="tg-rm" value="${hhmm(cfg.resumen_manana)}"></div>
+          <div style="flex:1;min-width:150px"><label class="f">Resumen de la tarde</label><input class="inp" type="time" id="tg-rt" value="${hhmm(cfg.resumen_tarde)}"></div>
+        </div>
+        <label class="f">Modo</label>
+        <select class="inp" id="tg-modo"><option value="piloto" ${cfg.modo !== 'produccion' ? 'selected' : ''}>Piloto (prueba)</option><option value="produccion" ${cfg.modo === 'produccion' ? 'selected' : ''}>Producción</option></select>
+        <label class="f">Enlace del sistema (para el botón “Responder en el sistema”)</label>
+        <input class="inp" id="tg-url" value="${esc(urlApp)}">
+        <div class="err" id="tg-cfg-err"></div>
+        <button type="submit" class="btn sm">Guardar tiempos</button>
+      </form>
+    </div>
+
+    <div class="push-box">
+      <b>5. Cadena de escalamiento</b>
+      <p class="nota-a" style="margin:4px 0 10px">Si nadie toca “Lo vi” a tiempo, se alerta a los roles marcados.</p>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Si no confirma…</th><th>Se alerta a</th></tr></thead><tbody>
+        ${['mucama','supervisora','ama_llaves','operaciones'].map(r => `<tr><td><b>${ROL[r]}</b></td><td>
+          ${ROLES.filter(x => x !== r).map(x => `<label style="display:inline-flex;gap:5px;align-items:center;margin:0 12px 4px 0;font-size:14px">
+            <input type="checkbox" data-esc="${r}" value="${x}" ${escRol(r).includes(x) ? 'checked' : ''}>${ROL[x]}</label>`).join('')}
+        </td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="err" id="tg-esc-err"></div>
+      <button type="button" class="btn sm" id="tg-esc-guardar">Guardar escalamiento</button>
+    </div>
+
+    <div class="push-box">
+      <b>6. Colaboradores conectados</b> <span style="color:var(--muted);font-size:13px">(${vinc} de ${ok.usuarios.length})</span>
+      <p class="nota-a" style="margin:4px 0 10px">Cada persona se conecta desde <b>Mi cuenta → Conectar Telegram</b> en su celular.</p>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Telegram</th><th></th></tr></thead><tbody>
+        ${ok.usuarios.map(u => `<tr><td><b>${esc(u.nombre)}</b></td><td>${ROL[u.rol] || u.rol}</td>
+          <td>${!u.vinculado ? '<span class="tag">No conectado</span>'
+              : u.pendiente_reconectar ? '<span class="tag t-pendiente_admin">Debe reconectar</span>'
+              : `<span class="tag t-listo">Conectado</span>${u.telegram_username ? ` <span style="color:var(--muted);font-size:12px">@${esc(u.telegram_username)}</span>` : ''}`}</td>
+          <td style="text-align:right">${u.vinculado ? `<button type="button" class="btn sec sm" data-tgdesv="${u.id}">Desconectar</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>`;
+
+  const encender = async v => {
+    if (v && !confirm('Al encender, cada reporte nuevo se avisará en el grupo de Telegram y la alerta se repetirá hasta que el responsable toque "Lo vi".\n\n¿Encender Telegram?')) return;
+    if (!v && !confirm('Al apagar, el sistema deja de enviar mensajes a Telegram. Todo lo demás sigue igual.\n\n¿Apagar Telegram?')) return;
+    const { error } = await sb.rpc('telegram_activar', { p_activo:v });
+    if (error) return aviso(errMsg(error), true);
+    aviso(v ? 'Telegram encendido' : 'Telegram apagado'); mTelegram();
+  };
+  $('#tg-on') && ($('#tg-on').onclick = () => encender(true));
+  $('#tg-off') && ($('#tg-off').onclick = () => encender(false));
+  $('#tg-recargar').onclick = mTelegram;
+
+  $('#tg-guardar-token').onclick = async e => {
+    const token = $('#tg-token').value.trim();
+    if (!token) return $('#tg-token-err').textContent = 'Pegue la clave del bot';
+    if (ok.tiene_token && !confirm('Va a cambiar el bot. Si es un bot distinto, habrá que registrar de nuevo el grupo y cada colaborador deberá tocar "Iniciar" en el bot nuevo.\n\n¿Continuar?')) return;
+    e.target.disabled = true; $('#tg-token-err').textContent = '';
+    const r = await tgAdmin('guardar_token', { token });
+    e.target.disabled = false;
+    if (!r.ok) return $('#tg-token-err').textContent = r.error;
+    aviso(`Bot @${r.bot_username} conectado`); mTelegram();
+  };
+  $('#tg-quitar') && ($('#tg-quitar').onclick = async () => {
+    if (!confirm('Se desconectará el bot y se apagará Telegram. Los reportes y la bitácora no se tocan.\n\n¿Quitar el bot?')) return;
+    const r = await tgAdmin('quitar_bot');
+    if (!r.ok) return aviso(r.error, true);
+    aviso('Bot desconectado'); mTelegram();
+  });
+  $('#tg-probar').onclick = async e => {
+    e.target.disabled = true;
+    const r = await tgAdmin('probar');
+    e.target.disabled = false;
+    aviso(r.ok ? 'Mensaje de prueba enviado al grupo' : r.error, !r.ok);
+  };
+  $('#tg-cfg').onsubmit = async e => {
+    e.preventDefault();
+    const rep = +$('#tg-rep').value, escl = +$('#tg-escl').value;
+    if (!(rep >= 1 && rep <= 60) || !(escl >= 1 && escl <= 240)) return $('#tg-cfg-err').textContent = 'Revise los minutos (repetir: 1 a 60, escalar: 1 a 240)';
+    if (escl < rep) return $('#tg-cfg-err').textContent = 'El escalamiento debe ser igual o mayor que la repetición';
+    const { error } = await sb.from('telegram_config').update({
+      repetir_cada_min:rep, escalar_a_min:escl, resumen_manana:$('#tg-rm').value, resumen_tarde:$('#tg-rt').value,
+      modo:$('#tg-modo').value, app_url:$('#tg-url').value.trim() || null,
+      actualizado_en:new Date().toISOString(), actualizado_por:S.perfil.id
+    }).eq('id', 1);
+    if (error) return $('#tg-cfg-err').textContent = errMsg(error);
+    aviso('Tiempos guardados'); mTelegram();
+  };
+  $('#tg-esc-guardar').onclick = async () => {
+    for (const r of ['mucama','supervisora','ama_llaves','operaciones']) {
+      const escala_a = $$(`[data-esc="${r}"]:checked`).map(x => x.value);
+      const { error } = await sb.from('telegram_escalamiento').update({ escala_a }).eq('rol', r);
+      if (error) return $('#tg-esc-err').textContent = errMsg(error);
+    }
+    aviso('Escalamiento guardado');
+  };
+  $$('[data-tgdesv]').forEach(b => b.onclick = async () => {
+    const u = ok.usuarios.find(x => x.id === b.dataset.tgdesv);
+    if (!confirm(`¿Desconectar el Telegram de ${u?.nombre}? Dejará de recibir menciones hasta que se conecte de nuevo.`)) return;
+    const { error } = await sb.rpc('telegram_desvincular', { p_usuario:b.dataset.tgdesv });
+    if (error) return aviso(errMsg(error), true);
+    aviso('Telegram desconectado'); mTelegram();
+  });
+}
+
+/* ---------- Mi cuenta › Conectar Telegram (cada colaborador) ---------- */
+async function pintarTelegram(){
+  const box = $('#tgb'); if (!box) return;
+  const cfg = await cargarTgConfig();
+  if (!cfg?.bot_username) { box.classList.add('hidden'); return; }   // aún no hay bot configurado
+  const { data:v } = await sb.from('telegram_vinculos').select('*').eq('usuario_id', S.perfil.id).maybeSingle();
+  const conectado = !!v?.vinculado_en;
+  const reconectar = conectado && v.bot_iniciado !== cfg.bot_username;
+  const enlace = c => `https://t.me/${cfg.bot_username}${c ? `?start=${c}` : ''}`;
+  box.classList.remove('hidden');
+  box.innerHTML = `<b>📨 Telegram</b>
+    <div class="pb-estado">${!conectado ? '<span class="pill off">No conectado</span> Conecte su Telegram para recibir las alertas de casos en el grupo.'
+      : reconectar ? '<span class="pill off">Debe reconectar</span> Se cambió el bot. Toque “Reconectar” y luego “Iniciar” en Telegram.'
+      : `<span class="pill on">Conectado</span> ${v.telegram_username ? '@' + esc(v.telegram_username) : esc(v.telegram_nombre || '')}`}</div>
+    <div class="pb-ac">
+      ${!conectado ? '<button type="button" class="btn sm" data-tg="conectar">Conectar Telegram</button>' : ''}
+      ${reconectar ? '<button type="button" class="btn sm" data-tg="reconectar">Reconectar</button>' : ''}
+      ${conectado ? '<button type="button" class="btn sec sm" data-tg="desconectar">Desconectar</button>' : ''}
+    </div>
+    <div id="tg-paso" style="font-size:13px;margin-top:8px"></div>`;
+  box.onclick = async e => {
+    const b = e.target.closest('[data-tg]'); if (!b) return;
+    if (b.dataset.tg === 'reconectar') { window.open(enlace(), '_blank'); setTimeout(pintarTelegram, 8000); return; }
+    if (b.dataset.tg === 'desconectar') {
+      if (!confirm('¿Desconectar su Telegram? Dejará de recibir las alertas en el grupo.')) return;
+      const { error } = await sb.rpc('telegram_desvincular');
+      if (error) return aviso(errMsg(error), true);
+      aviso('Telegram desconectado'); return pintarTelegram();
+    }
+    b.disabled = true;
+    const { data:codigo, error } = await sb.rpc('telegram_generar_codigo');
+    b.disabled = false;
+    if (error) return aviso(errMsg(error), true);
+    window.open(enlace(codigo), '_blank');
+    $('#tg-paso').innerHTML = `Se abrió Telegram. Toque <b>Iniciar</b> en el chat del bot y espere el mensaje de confirmación.<br>
+      Si no se abrió, <a href="${enlace(codigo)}" target="_blank" rel="noopener">toque aquí</a>. El enlace vence en 15 minutos.<br>
+      <button type="button" class="btn sec sm" style="margin-top:8px" data-tg="revisar">Ya lo hice</button>`;
+    $('#tg-paso [data-tg="revisar"]').onclick = ev => { ev.stopPropagation(); pintarTelegram(); };
+  };
+}
+
+/* =====================================================================
    MI CUENTA
    ===================================================================== */
 $('#b-cuenta').addEventListener('click', () => {
@@ -2004,9 +2227,11 @@ $('#b-cuenta').addEventListener('click', () => {
       <div class="err" id="fc-err"></div>
       <button class="btn block" type="submit">Guardar contraseña</button>
       <div class="push-box" id="pb"><div class="loading" style="padding:6px">Revisando notificaciones…</div></div>
+      <div class="push-box hidden" id="tgb"></div>
       <button class="btn sec block" type="button" id="fc-salir" style="margin-top:16px">Cerrar sesión</button>
     </form>`, true);
   pintarPush();
+  pintarTelegram();
   $('#fc-salir').onclick = () => { cerrarModal(); salir(); };
   $('#fc').onsubmit = async e => {
     e.preventDefault();
