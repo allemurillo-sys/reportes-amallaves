@@ -255,6 +255,40 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .push-box .pb-ac{display:flex;gap:8px;flex-wrap:wrap}
 .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700}
 .pill.on{background:var(--baja-bg);color:var(--baja)} .pill.off{background:var(--alta-bg);color:var(--alta)}
+
+/* ---------- Claves de caja (Self check-in) ---------- */
+.view-title h2 small{font-size:13px;font-weight:600;color:var(--muted);margin-left:6px;letter-spacing:.02em}
+.k-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;align-items:start}
+.k-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;border-top:4px solid var(--accent)}
+.k-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px}
+.k-head h3{font-size:17px}
+.k-head .k-hacc{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.k-caja{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid var(--line);border-radius:10px;transition:background .6s}
+.k-head + .k-caja{border-top:0}
+.k-caja.k-flash{background:#fdf6ec;box-shadow:0 0 0 6px #fdf6ec}
+.k-foto{flex:none;width:112px;height:84px;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:#efece6;display:grid;place-items:center;border:0;padding:0;cursor:pointer;color:var(--muted);font-size:12px;font-weight:600;text-align:center}
+.k-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.k-foto span{display:block;font-size:22px}
+.k-foto.vacia{border:2px dashed var(--line);background:#fff;cursor:default}
+.k-foto.vacia.edit{cursor:pointer}
+.k-info{flex:1;min-width:0}
+.k-nombre{font-weight:700}
+.k-ubic{font-size:13px;color:var(--muted)}
+.k-clave{display:flex;align-items:center;gap:10px;margin:6px 0 2px}
+.k-dig{font:700 28px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.28em;color:var(--brand);background:#eef3f3;border-radius:10px;padding:8px 6px 8px 12px;min-width:118px;text-align:center}
+.k-dig.oculta{color:var(--muted);letter-spacing:.2em}
+.k-meta{font-size:12px;color:var(--muted)}
+.k-acc{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.k-vacio{color:var(--muted);text-align:center;padding:30px 10px}
+.k-arch{opacity:.75}
+.k-in{font:700 34px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.5em;text-align:center;padding:14px 0 14px .5em}
+.k-ver-foto img{width:100%;border-radius:12px;display:block;background:#eee}
+.k-hist li .txt b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.12em}
+@media (max-width:760px){
+  .k-grid{grid-template-columns:1fr}
+  .k-foto{width:96px;height:72px}
+  .k-dig{font-size:26px;min-width:108px}
+}
 </style>
 </head>
 <body>
@@ -420,6 +454,26 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
       </form>
       <div id="h-info" style="color:var(--muted);font-size:13px;margin-bottom:8px"></div>
       <div class="list" id="l-hist"></div>
+    </section>
+
+    <!-- CLAVES DE CAJA (Self check-in) -->
+    <section id="v-claves" class="view hidden">
+      <div class="view-title">
+        <h2>Claves de caja<small>Self check-in</small></h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sec sm" id="k-ref">⟳ Actualizar</button>
+          <button class="btn sm hidden" id="k-agregar">+ Agregar propiedad</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="inp" id="k-q" placeholder="Buscar propiedad o caja…" autocomplete="off">
+        <select class="inp hidden" id="k-ver" style="flex:0 0 auto;min-width:170px">
+          <option value="activas">Cajas activas</option>
+          <option value="archivadas">Cajas archivadas</option>
+        </select>
+      </div>
+      <div class="k-grid" id="k-lista"></div>
+      <input type="file" id="k-file" accept="image/*" class="hidden">
     </section>
 
     <!-- MANTENIMIENTO -->
@@ -663,6 +717,7 @@ async function iniciarSesion(){
   conectarTiempoReal();
   prepararPush();
   if (S.casoPendiente) { const id = S.casoPendiente; S.casoPendiente = null; abrirCasoPush(id); }
+  else if (S.clavesPendiente) { const k = S.clavesPendiente; S.clavesPendiente = null; abrirClavesPush(k.caja); }
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
   S.intervalos.push(setInterval(async () => {
@@ -696,6 +751,8 @@ function mostrarLogin(msg){
   S.intervalos.forEach(clearInterval); S.intervalos = [];
   if (S.canal) { sb.removeChannel(S.canal); S.canal = null; }
   if (S.canalN) { sb.removeChannel(S.canalN); S.canalN = null; }
+  if (S.canalK) { sb.removeChannel(S.canalK); S.canalK = null; }
+  K.cajas = []; K.fotos = {}; K.cargado = false; ocultarClaves();
   S.alertaId = null; S.toastsVistos.clear(); $('#toasts').innerHTML = '';
   S.notifs = []; S.activos = []; S.permisos = new Set(); S.permisosTxt = '';
   P.oculto = false; $('#push-aviso').classList.add('hidden');
@@ -732,6 +789,7 @@ function menuItems(){
   if (tengo('crear_reportes')) items.push(['nuevo','➕','Nuevo reporte']);
   if (!tengo('panel')) items.push(['mis','📋','Estado de casos']);
   if (tengo('buscar_casos')) items.push(['historial','🔎','Buscar casos']);
+  if (puedeClaves()) items.push(['claves','🔑','Claves de caja']);
   if (tabsMant().length) items.push(['mant','⚙️','Mantenimiento']);
   return items;
 }
@@ -743,6 +801,7 @@ $('#menu').addEventListener('click', e => { const b = e.target.closest('[data-vi
 
 function irA(v){
   if (!menuVistas().includes(v)) v = vistaInicial();
+  if (v !== 'claves') ocultarClaves();
   S.vista = v;
   $$('.view').forEach(s => s.classList.add('hidden'));
   $('#v-' + v).classList.remove('hidden');
@@ -752,6 +811,7 @@ function irA(v){
   if (v === 'mis') cargarMis();
   if (v === 'historial' && !$('#l-hist').innerHTML) buscarHistorial();
   if (v === 'mant') armarMant();
+  if (v === 'claves') cargarClaves();
 }
 
 /* =====================================================================
@@ -820,6 +880,15 @@ function conectarTiempoReal(){
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'notificaciones', filter:'usuario_id=eq.' + S.user.id },
         p => nuevaNotif(p.new))
     .subscribe();
+  // Claves de caja: la lista se actualiza sola cuando alguien cambia una clave
+  if (puedeClaves()) {
+    S.canalK = sb.channel('claves-cambios')
+      .on('postgres_changes', { event:'*', schema:'public', table:'claves_cajas' }, () => {
+        clearTimeout(K.recargaT);
+        K.recargaT = setTimeout(() => { if (S.vista === 'claves') cargarClaves(true); }, 400);
+      })
+      .subscribe();
+  }
 }
 
 /* =====================================================================
@@ -968,12 +1037,14 @@ function pintarCampana(){
 function nuevaNotif(n){
   if (!n || S.notifs.some(x => x.id === n.id)) return;
   S.notifs.unshift(n); pintarCampana();
+  const clave = n.tipo === 'clave';
+  if (clave && S.vista === 'claves') cargarClaves(true);
   const el = document.createElement('div');
   el.className = 'toast notif'; el.dataset.tipo = 'notif';
-  el.innerHTML = `<div class="tt">📬 Novedad en un reporte</div>
-    <div class="tb"><b>${esc(n.numero_caso)}</b> · ${esc(n.propiedad_nombre || '')}<br>
+  el.innerHTML = `<div class="tt">${clave ? '🔑 Clave de caja' : '📬 Novedad en un reporte'}</div>
+    <div class="tb">${clave ? '' : `<b>${esc(n.numero_caso)}</b> · `}${clave ? `<b>${esc(n.propiedad_nombre || '')}</b>` : esc(n.propiedad_nombre || '')}<br>
     <span style="font-size:13px">${esc(n.mensaje)}</span></div>
-    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ver reporte</button></div>`;
+    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>${clave ? 'Ver claves' : 'Ver reporte'}</button></div>`;
   el.querySelector('[data-cerrar]').onclick = () => el.remove();
   el.querySelector('[data-ver]').onclick = () => { el.remove(); abrirNotif(n); };
   $('#toasts').prepend(el);
@@ -982,15 +1053,16 @@ function nuevaNotif(n){
 async function abrirNotif(n){
   if (S.forzadoId) return aviso('Primero responda el caso que tiene abierto', true);
   if (!n.leida) { n.leida = true; pintarCampana(); sb.rpc('marcar_leidas', { p_ids:[n.id] }); }
+  if (n.tipo === 'clave') { cerrarModal(); return irAClaves(n.caja_id); }
   abrirDetalle(n.reporte_id);
 }
 function verNotifs(){
   const items = S.notifs.map(n => `<button class="notif-item ${n.leida ? '' : 'nueva'}" data-notif="${n.id}">
-      <div class="nc">${n.leida ? '' : '● '}${esc(n.numero_caso)} · ${esc(n.propiedad_nombre || '')}</div>
+      <div class="nc">${n.leida ? '' : '● '}${n.tipo === 'clave' ? '🔑 Clave de caja' : esc(n.numero_caso)} · ${esc(n.propiedad_nombre || '')}</div>
       <div class="nm">${esc(n.mensaje)}</div>
       <div class="nf">${fecha(n.creado_en)}</div></button>`).join('');
   const ok = abrirModal(`<div class="m-head"><div><h3>Notificaciones</h3>
-      <div style="color:var(--muted);font-size:13px">Novedades de los reportes que usted creó, tiene asignados o le corresponde seguir</div></div>
+      <div style="color:var(--muted);font-size:13px">Novedades de los reportes que usted creó, tiene asignados o le corresponde seguir, y cambios de claves de caja</div></div>
       <button class="x" data-x aria-label="Cerrar">✕</button></div>
     <div class="m-body">
       ${S.notifs.some(n => !n.leida) ? '<button class="btn sec sm" id="nt-todas" style="margin-bottom:8px">✔ Marcar todas como leídas</button>' : ''}
@@ -1692,7 +1764,7 @@ async function mPropiedades(){
   });
   $$('[data-pdel]').forEach(b => b.onclick = async () => {
     const p = buscar(b.dataset.pdel);
-    if (!confirm(`¿Eliminar definitivamente "${p.nombre}"?\nLos reportes anteriores conservarán el nombre de la propiedad.`)) return;
+    if (!confirm(`¿Eliminar definitivamente "${p.nombre}"?\nLos reportes anteriores conservarán el nombre de la propiedad.\nSi tiene cajas en "Claves de caja", también se eliminarán (su historial se conserva).`)) return;
     const { error } = await sb.from('propiedades').delete().eq('id', p.id);
     if (error) return aviso(errMsg(error), true);
     aviso('Propiedad eliminada'); mPropiedades();
@@ -1987,11 +2059,24 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', e => {
     const d = e.data || {};
     if (d.tipo === 'abrir-caso') abrirCasoPush(+d.reporte_id);
-    if (d.tipo === 'push' && S.perfil) { cargarNotifs(); cargarActivos(); }
+    if (d.tipo === 'abrir-vista' && d.vista === 'claves') abrirClavesPush(+d.caja_id || null);
+    if (d.tipo === 'push' && S.perfil) { cargarNotifs(); cargarActivos(); if (S.vista === 'claves') cargarClaves(true); }
   });
 }
-S.casoPendiente = +new URLSearchParams(location.search).get('caso') || null;
-if (S.casoPendiente) history.replaceState(null, '', location.pathname);
+// Abrir "Claves de caja" desde una notificación tocada (o un enlace ?claves=)
+function abrirClavesPush(cajaId){
+  if (!S.perfil) { S.clavesPendiente = { caja:cajaId }; return; }
+  const ids = S.notifs.filter(n => !n.leida && n.tipo === 'clave' && (!cajaId || n.caja_id === cajaId)).map(n => n.id);
+  if (ids.length) { S.notifs.forEach(n => { if (ids.includes(n.id)) n.leida = true; }); pintarCampana(); sb.rpc('marcar_leidas', { p_ids:ids }); }
+  if (S.alertaId || S.forzadoId) return;                       // primero se atiende el caso obligatorio
+  cerrarModal(); irAClaves(cajaId);
+}
+(() => {
+  const q = new URLSearchParams(location.search);
+  S.casoPendiente = +q.get('caso') || null;
+  S.clavesPendiente = q.has('claves') ? { caja:+q.get('claves') || null } : null;
+  if (S.casoPendiente || S.clavesPendiente) history.replaceState(null, '', location.pathname);
+})();
 
 /* =====================================================================
    TELEGRAM — alertas en tiempo real (el sistema sigue siendo el centro:
@@ -2216,6 +2301,385 @@ async function pintarTelegram(){
 }
 
 /* =====================================================================
+   CLAVES DE CAJA (Self check-in)
+   · Todos los que tienen el permiso ven y cambian claves.
+   · Operaciones, Ama de llaves y Admin agregan/editan/archivan cajas y fotos.
+   · Cada cambio queda en el historial (lo registra la base de datos, no se puede saltar).
+   · La clave se muestra oculta (••••) hasta tocar "Mostrar" y se vuelve a ocultar sola.
+   ===================================================================== */
+function puedeClaves(){ return tengo('claves_cambiar') || tengo('claves_administrar'); }
+const K = { cajas:[], fotos:{}, cargado:false, recargaT:null, visibles:new Map(), destacar:null, fotoCaja:null };
+const K_BUCKET = 'fotos-claves';
+const K_MAX_CAJAS = 2;               // cajas activas por propiedad (también lo controla la base de datos)
+const K_VISIBLE_MS = 20000;          // la clave se vuelve a ocultar sola después de 20 segundos
+const kAdmin = () => tengo('claves_administrar');
+const nombreProp = id => S.propiedades.find(p => p.id === id)?.nombre || 'Propiedad';
+const kCaja = id => K.cajas.find(c => c.id === id);
+const kActivas = pid => K.cajas.filter(c => c.propiedad_id === pid && c.activa).length;
+function hace(iso){
+  const ms = ahora() - new Date(iso);
+  return ms < 60000 ? 'hace un momento' : 'hace ' + duracion(ms);
+}
+
+async function cargarClaves(silencioso){
+  if (!S.perfil || !puedeClaves()) return;
+  $('#k-agregar').classList.toggle('hidden', !kAdmin());
+  $('#k-ver').classList.toggle('hidden', !kAdmin());
+  if (!kAdmin()) $('#k-ver').value = 'activas';
+  if (!silencioso && !K.cargado) $('#k-lista').innerHTML = '<div class="loading" style="grid-column:1/-1">Cargando…</div>';
+  const { data, error } = await sb.from('claves_cajas').select('*').order('creado_en');
+  if (error) { if (!silencioso) aviso(errMsg(error), true); return; }
+  K.cajas = data || []; K.cargado = true;
+  await firmarFotos(K.cajas.map(c => c.foto).filter(Boolean));
+  if (S.vista === 'claves') pintarClaves();
+}
+// Las fotos son privadas: se piden enlaces temporales (1 hora)
+async function firmarFotos(paths){
+  const falta = [...new Set(paths)].filter(p => !K.fotos[p] || K.fotos[p].vence < Date.now());
+  if (!falta.length) return;
+  const { data } = await sb.storage.from(K_BUCKET).createSignedUrls(falta, 3600);
+  (data || []).forEach(u => { if (u.signedUrl && u.path) K.fotos[u.path] = { url:u.signedUrl, vence:Date.now() + 50 * 60000 }; });
+}
+const fotoUrl = p => (p && K.fotos[p]) ? K.fotos[p].url : null;
+
+function pintarClaves(){
+  const arch = $('#k-ver').value === 'archivadas', q = norm($('#k-q').value);
+  const props = new Map(S.propiedades.map(p => [p.id, p]));
+  const grupos = new Map();
+  K.cajas.filter(c => c.activa !== arch).forEach(c => {
+    if (!grupos.has(c.propiedad_id)) grupos.set(c.propiedad_id, []);
+    grupos.get(c.propiedad_id).push(c);
+  });
+  let lista = [...grupos.entries()].map(([pid, cajas]) => ({ pid, prop:props.get(pid), nombre:props.get(pid)?.nombre || 'Propiedad', cajas }));
+  if (q) lista = lista.filter(g => norm(g.nombre + ' ' + g.cajas.map(c => c.nombre + ' ' + (c.ubicacion || '')).join(' ')).includes(q));
+  lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  if (!lista.length) {
+    const vacio = q ? 'No se encontró ninguna propiedad con esa búsqueda'
+      : arch ? 'No hay cajas archivadas'
+      : kAdmin() ? 'Aún no hay propiedades con self check-in.<br>Toque <b>+ Agregar propiedad</b> para empezar.'
+      : 'Aún no hay propiedades con self check-in.';
+    $('#k-lista').innerHTML = `<div class="card-box k-vacio" style="grid-column:1/-1">${vacio}</div>`;
+    return;
+  }
+  $('#k-lista').innerHTML = lista.map(g => tarjetaClaves(g, arch)).join('');
+  if (K.destacar) destacarCaja();
+}
+
+function tarjetaClaves(g, arch){
+  const adm = kAdmin(), inactiva = g.prop && !g.prop.activa;
+  return `<div class="k-card ${arch ? 'k-arch' : ''}">
+    <div class="k-head">
+      <div><h3>${esc(g.nombre)}</h3>${inactiva ? '<span class="tag" style="margin-top:4px;display:inline-block">Propiedad inactiva</span>' : ''}</div>
+      <div class="k-hacc">
+        <button class="btn sec sm" data-khistp="${g.pid}" title="Historial de toda la propiedad" aria-label="Historial de la propiedad">🕑 Historial</button>
+        ${adm && !arch && kActivas(g.pid) < K_MAX_CAJAS ? `<button class="btn sec sm" data-kadd="${g.pid}">+ Caja</button>` : ''}
+        ${adm && !arch ? `<button class="btn sec sm" data-kquitar="${g.pid}" title="Quitar de la sección (se archivan sus cajas)">Quitar</button>` : ''}
+      </div>
+    </div>
+    ${g.cajas.map(c => cajaHTML(c, arch)).join('')}
+  </div>`;
+}
+
+function cajaHTML(c, arch){
+  const adm = kAdmin() && !arch, url = fotoUrl(c.foto), vis = K.visibles.has(c.id);
+  const foto = url
+    ? `<button class="k-foto" data-kfoto="${c.id}" aria-label="Ver foto de la ubicación"><img src="${esc(url)}" alt="Ubicación de ${esc(c.nombre)}" loading="lazy"></button>`
+    : `<button class="k-foto vacia ${adm ? 'edit' : ''}" ${adm ? `data-ksubir="${c.id}"` : 'disabled'} aria-label="${adm ? 'Agregar foto' : 'Sin foto'}"><div><span>📷</span>${adm ? 'Agregar foto' : 'Sin foto'}</div></button>`;
+  return `<div class="k-caja" id="kc-${c.id}">
+    ${foto}
+    <div class="k-info">
+      <div class="k-nombre">${esc(c.nombre)}</div>
+      ${c.ubicacion ? `<div class="k-ubic">${esc(c.ubicacion)}</div>` : ''}
+      <div class="k-clave">
+        <span class="k-dig ${vis ? '' : 'oculta'}" aria-live="polite">${vis ? esc(c.clave) : '••••'}</span>
+        <button class="btn sec sm" data-kmostrar="${c.id}">${vis ? 'Ocultar' : 'Mostrar'}</button>
+      </div>
+      <div class="k-meta">${arch ? 'Archivada · ' : ''}Clave cambiada por ${esc(nombre(c.clave_cambiada_por))} · ${hace(c.clave_cambiada_en)}</div>
+      <div class="k-acc">
+        ${arch ? (kAdmin() ? `<button class="btn sm" data-krest="${c.id}">↺ Restaurar</button>` : '')
+               : `<button class="btn sm" data-kcambiar="${c.id}">Cambiar clave</button>`}
+        <button class="btn sec sm" data-khist="${c.id}">Historial</button>
+        ${adm ? `<button class="btn sec sm" data-keditar="${c.id}">Editar</button>
+          <button class="btn sec sm" data-ksubir="${c.id}">📷 ${c.foto ? 'Cambiar foto' : 'Foto'}</button>
+          <button class="btn sec sm" data-karch="${c.id}">Archivar</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- Mostrar / ocultar la clave ---------- */
+function mostrarClave(id){
+  if (K.visibles.has(id)) { clearTimeout(K.visibles.get(id)); K.visibles.delete(id); }
+  else K.visibles.set(id, setTimeout(() => { K.visibles.delete(id); pintarClaveVis(id); }, K_VISIBLE_MS));
+  pintarClaveVis(id);
+}
+function pintarClaveVis(id){
+  const el = $('#kc-' + id), c = kCaja(id); if (!el || !c) return;
+  const vis = K.visibles.has(id), d = el.querySelector('.k-dig'), b = el.querySelector('[data-kmostrar]');
+  d.textContent = vis ? c.clave : '••••'; d.classList.toggle('oculta', !vis);
+  if (b) b.textContent = vis ? 'Ocultar' : 'Mostrar';
+}
+function ocultarClaves(){
+  K.visibles.forEach(t => clearTimeout(t));
+  const ids = [...K.visibles.keys()]; K.visibles.clear();
+  ids.forEach(pintarClaveVis);
+}
+// Al bloquear el celular o cambiar de app, las claves visibles se ocultan
+document.addEventListener('visibilitychange', () => { if (document.hidden) ocultarClaves(); });
+
+/* ---------- Ir a la sección (desde un aviso) y resaltar la caja ---------- */
+function irAClaves(cajaId){
+  K.destacar = cajaId || null;
+  const c = cajaId && kCaja(cajaId);
+  $('#k-ver').value = c && !c.activa && kAdmin() ? 'archivadas' : 'activas';
+  $('#k-q').value = '';
+  irA('claves');
+}
+function destacarCaja(){
+  const id = K.destacar; K.destacar = null;
+  const el = $('#kc-' + id); if (!el) return;
+  el.scrollIntoView({ block:'center', behavior:'smooth' });
+  el.classList.add('k-flash'); setTimeout(() => el.classList.remove('k-flash'), 2600);
+}
+
+/* ---------- Eventos de la lista ---------- */
+$('#k-q').addEventListener('input', pintarClaves);
+$('#k-ver').addEventListener('change', pintarClaves);
+$('#k-ref').addEventListener('click', async () => { await cargarClaves(); aviso('Actualizado'); });
+$('#k-agregar').addEventListener('click', () => formCaja(null, null));
+$('#k-lista').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset, id = k => +d[k];
+  if (d.kmostrar) mostrarClave(id('kmostrar'));
+  else if (d.kcambiar) formCambiarClave(kCaja(id('kcambiar')));
+  else if (d.khist) { const c = kCaja(id('khist')); historialClaves({ caja:c.id }, c.nombre, nombreProp(c.propiedad_id)); }
+  else if (d.khistp) historialClaves({ prop:id('khistp') }, 'Toda la propiedad', nombreProp(id('khistp')));
+  else if (d.kadd) formCaja(id('kadd'), null);
+  else if (d.keditar) formCaja(null, kCaja(id('keditar')));
+  else if (d.ksubir) { K.fotoCaja = id('ksubir'); $('#k-file').click(); }
+  else if (d.kfoto) verFotoCaja(kCaja(id('kfoto')));
+  else if (d.karch) archivarCaja(kCaja(id('karch')));
+  else if (d.krest) restaurarCaja(kCaja(id('krest')));
+  else if (d.kquitar) quitarPropiedadClaves(id('kquitar'));
+});
+
+/* ---------- Cambiar clave (todos) ---------- */
+// Campo de 4 números: solo deja escribir dígitos
+const soloDigitos = inp => { inp.oninput = () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 4); }; };
+
+function formCambiarClave(c){
+  if (!c) return;
+  if (!abrirModal(`<div class="m-head"><div><h3>Cambiar clave</h3>
+      <div style="color:var(--muted);font-size:13px">${esc(nombreProp(c.propiedad_id))} · ${esc(c.nombre)}</div></div>
+      <button class="x" data-x aria-label="Cerrar">✕</button></div>
+    <form class="m-body" id="kcf" autocomplete="off" novalidate>
+      <label class="f" for="kcf-c">Clave nueva (4 números)</label>
+      <input class="inp k-in" id="kcf-c" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required>
+      <div class="k-meta" style="margin-top:6px">Clave actual: <b>${esc(c.clave)}</b></div>
+      <label class="f" for="kcf-m">Motivo (opcional)</label>
+      <input class="inp" id="kcf-m" maxlength="200" placeholder="Ej.: salió huésped, clave comprometida…">
+      <div class="err" id="kcf-err"></div>
+      <button class="btn block" type="submit" id="kcf-b">Guardar clave</button>
+      <p class="nota-a">El cambio queda registrado en el historial y se avisa a todo el equipo. El aviso no muestra la clave.</p>
+    </form>`, true)) return;
+  const inp = $('#kcf-c'); soloDigitos(inp); inp.focus();
+  $('#kcf').onsubmit = async e => {
+    e.preventDefault();
+    const err = $('#kcf-err'), v = inp.value; err.textContent = '';
+    if (!/^\d{4}$/.test(v)) return err.textContent = 'La clave debe tener exactamente 4 números';
+    if (v === c.clave) return err.textContent = 'La clave nueva es igual a la actual';
+    const b = $('#kcf-b'); b.disabled = true; b.textContent = 'Guardando…';
+    const { error } = await sb.rpc('claves_cambiar', { p_caja:c.id, p_clave:v, p_motivo:$('#kcf-m').value.trim() || null });
+    b.disabled = false; b.textContent = 'Guardar clave';
+    if (error) return err.textContent = errMsg(error);
+    cerrarModal(); aviso('Clave actualizada'); K.destacar = c.id; cargarClaves(true);
+  };
+}
+
+/* ---------- Agregar propiedad / agregar caja / editar caja (Ops, Ama de llaves, Admin) ---------- */
+async function formCaja(pid, c){
+  if (!kAdmin()) return;
+  const editar = !!c, nueva = !pid && !editar;
+  if (nueva) await cargarPropiedades();
+  const libres = S.propiedades.filter(p => p.activa && kActivas(p.id) === 0);
+  const titulo = editar ? 'Editar caja' : nueva ? 'Agregar propiedad' : 'Agregar caja';
+  const sub = editar ? nombreProp(c.propiedad_id) : pid ? nombreProp(pid) + ` · caja ${kActivas(pid) + 1} de ${K_MAX_CAJAS}` : 'Propiedad con self check-in';
+  const sugerido = editar ? c.nombre : (pid && kActivas(pid) ? '' : 'Entrada principal');
+  if (!abrirModal(`<div class="m-head"><div><h3>${titulo}</h3><div style="color:var(--muted);font-size:13px">${esc(sub)}</div></div>
+      <button class="x" data-x aria-label="Cerrar">✕</button></div>
+    <form class="m-body" id="kf" autocomplete="off" novalidate>
+      ${nueva ? `<label class="f" for="kf-p">Propiedad</label>
+        <select class="inp" id="kf-p" required><option value="">— Seleccione la propiedad —</option>
+          ${libres.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('')}</select>
+        ${libres.length ? '' : '<p class="nota-a">Todas las propiedades activas ya están en la sección. Si la propiedad no existe, créela primero en <b>Mantenimiento › Propiedades</b>.</p>'}` : ''}
+      <label class="f" for="kf-n">Nombre de la caja</label>
+      <input class="inp" id="kf-n" maxlength="60" value="${esc(sugerido)}" placeholder="Ej.: Entrada principal, Portón trasero" required>
+      <label class="f" for="kf-u">Ubicación o referencia (opcional)</label>
+      <input class="inp" id="kf-u" maxlength="200" value="${esc(editar ? c.ubicacion || '' : '')}" placeholder="Ej.: a la derecha de la puerta">
+      ${editar ? '' : `<label class="f" for="kf-c">Clave (4 números)</label>
+        <input class="inp k-in" id="kf-c" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required>
+        <label class="f" for="kf-f">Foto de dónde está la caja (opcional)</label>
+        <input class="inp" type="file" id="kf-f" accept="image/*">`}
+      <div class="err" id="kf-err"></div>
+      <button class="btn block" type="submit" id="kf-b">${editar ? 'Guardar cambios' : 'Agregar'}</button>
+    </form>`, true)) return;
+  if (!editar) soloDigitos($('#kf-c'));
+  $('#kf').onsubmit = async e => {
+    e.preventDefault();
+    const err = $('#kf-err'); err.textContent = '';
+    const prop = nueva ? +$('#kf-p').value : (pid || c.propiedad_id);
+    if (!prop) return err.textContent = 'Seleccione la propiedad';
+    if (!$('#kf-n').value.trim()) return err.textContent = 'Escriba el nombre de la caja';
+    if (!editar && !/^\d{4}$/.test($('#kf-c').value)) return err.textContent = 'La clave debe tener exactamente 4 números';
+    const b = $('#kf-b'); b.disabled = true; b.textContent = 'Guardando…';
+    const { data:id, error } = await sb.rpc('claves_guardar_caja', {
+      p_id: editar ? c.id : null, p_propiedad: prop, p_nombre: $('#kf-n').value.trim(),
+      p_ubicacion: $('#kf-u').value.trim() || null, p_clave: editar ? null : $('#kf-c').value });
+    if (error) { b.disabled = false; b.textContent = editar ? 'Guardar cambios' : 'Agregar'; return err.textContent = errMsg(error); }
+    const f = !editar && $('#kf-f').files[0];
+    if (f) {
+      b.textContent = 'Subiendo foto…';
+      try { await subirFotoCaja(id, f); } catch (ex) { aviso('La caja se agregó, pero la foto no se pudo subir: ' + errMsg(ex), true); }
+    }
+    cerrarModal(); aviso(editar ? 'Caja actualizada' : 'Caja agregada');
+    K.destacar = id; $('#k-ver').value = 'activas'; cargarClaves(true);
+  };
+}
+
+/* ---------- Foto de ubicación ---------- */
+// Tamaño fijo: máximo 1280 px por lado, en JPEG (normalmente entre 150 y 300 KB)
+function comprimirFotoCaja(file){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight; const max = 1280;
+      if (Math.max(w, h) > max) { const k = max / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const intentar = q => cv.toBlob(b => {
+        if (!b) return rej(new Error('No se pudo procesar la foto'));
+        if (b.size > 900 * 1024 && q > 0.45) intentar(q - 0.15); else res(b);
+      }, 'image/jpeg', q);
+      intentar(0.8);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('El archivo no es una foto válida')); };
+    img.src = url;
+  });
+}
+async function subirFotoCaja(id, file){
+  const blob = await comprimirFotoCaja(file);
+  const path = `cajas/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const { error } = await sb.storage.from(K_BUCKET).upload(path, blob, { contentType:'image/jpeg' });
+  if (error) throw error;
+  const { error:e2 } = await sb.rpc('claves_foto', { p_caja:id, p_path:path });
+  if (e2) throw e2;
+}
+$('#k-file').addEventListener('change', async e => {
+  const f = e.target.files[0], id = K.fotoCaja; e.target.value = ''; K.fotoCaja = null;
+  if (!f || !id) return;
+  aviso('Subiendo foto…');
+  try { await subirFotoCaja(id, f); cerrarModal(); aviso('Foto guardada'); K.destacar = id; cargarClaves(true); }
+  catch (ex) { aviso('No se pudo subir la foto: ' + errMsg(ex), true); }
+});
+function verFotoCaja(c){
+  const url = c && fotoUrl(c.foto); if (!url) return;
+  const adm = kAdmin() && c.activa;
+  if (!abrirModal(`<div class="m-head"><div><h3>${esc(c.nombre)}</h3>
+      <div style="color:var(--muted);font-size:13px">${esc(nombreProp(c.propiedad_id))}${c.ubicacion ? ' · ' + esc(c.ubicacion) : ''}</div></div>
+      <button class="x" data-x aria-label="Cerrar">✕</button></div>
+    <div class="m-body k-ver-foto"><img src="${esc(url)}" alt="Ubicación de ${esc(c.nombre)}">
+      ${adm ? `<div class="acciones" style="margin-top:12px;justify-content:flex-end">
+        <button class="btn sec" id="kvf-quitar">Quitar foto</button><button class="btn" id="kvf-cambiar">📷 Cambiar foto</button></div>` : ''}
+    </div>`)) return;
+  if (!adm) return;
+  $('#kvf-cambiar').onclick = () => { K.fotoCaja = c.id; $('#k-file').click(); };
+  $('#kvf-quitar').onclick = async () => {
+    if (!confirm('¿Quitar la foto de esta caja? Queda registrado en el historial.')) return;
+    const { error } = await sb.rpc('claves_foto', { p_caja:c.id, p_path:null });
+    if (error) return aviso(errMsg(error), true);
+    cerrarModal(); aviso('Foto quitada'); cargarClaves(true);
+  };
+}
+
+/* ---------- Archivar / restaurar (no se borra nada: el historial se conserva) ---------- */
+function confirmarConMotivo(titulo, texto, boton, accion){
+  if (!abrirModal(`<div class="m-head"><h3>${esc(titulo)}</h3><button class="x" data-x aria-label="Cerrar">✕</button></div>
+    <form class="m-body" id="kmo">
+      <p style="margin-top:0">${texto}</p>
+      <label class="f" for="kmo-m">Motivo (opcional)</label>
+      <input class="inp" id="kmo-m" maxlength="200" placeholder="Ej.: la propiedad ya no tiene self check-in">
+      <div class="err" id="kmo-err"></div>
+      <button class="btn block danger" type="submit" id="kmo-b">${esc(boton)}</button>
+    </form>`, true)) return;
+  $('#kmo').onsubmit = async e => {
+    e.preventDefault();
+    const b = $('#kmo-b'); b.disabled = true;
+    const error = await accion($('#kmo-m').value.trim() || null);
+    b.disabled = false;
+    if (error) return $('#kmo-err').textContent = errMsg(error);
+    cerrarModal(); cargarClaves(true);
+  };
+}
+function archivarCaja(c){
+  confirmarConMotivo('Archivar caja', `Se archivará <b>${esc(c.nombre)}</b> de <b>${esc(nombreProp(c.propiedad_id))}</b>. Deja de aparecer en la lista, pero conserva su historial y se puede restaurar.`,
+    'Archivar caja', async m => { const { error } = await sb.rpc('claves_archivar', { p_caja:c.id, p_activa:false, p_motivo:m }); if (!error) aviso('Caja archivada'); return error; });
+}
+function quitarPropiedadClaves(pid){
+  confirmarConMotivo('Quitar propiedad de la sección', `Se archivarán todas las cajas de <b>${esc(nombreProp(pid))}</b>. La propiedad sigue existiendo para los reportes, y el historial se conserva.`,
+    'Quitar de Claves de caja', async m => { const { error } = await sb.rpc('claves_archivar_propiedad', { p_propiedad:pid, p_motivo:m }); if (!error) aviso('Propiedad quitada de la sección'); return error; });
+}
+async function restaurarCaja(c){
+  const { error } = await sb.rpc('claves_archivar', { p_caja:c.id, p_activa:true, p_motivo:null });
+  if (error) return aviso(errMsg(error), true);
+  aviso('Caja restaurada'); K.destacar = c.id; $('#k-ver').value = 'activas'; cargarClaves(true);
+}
+
+/* ---------- Historial (permanente) ---------- */
+async function historialClaves(filtro, titulo, sub){
+  if (!abrirModal(`<div class="m-head"><div><h3>Historial · ${esc(titulo)}</h3><div style="color:var(--muted);font-size:13px">${esc(sub)}</div></div>
+      <button class="x" data-x aria-label="Cerrar">✕</button></div>
+    <div class="m-body" id="kh"><div class="loading">Cargando…</div></div>`)) return;
+  let q = sb.from('claves_historial').select('*').order('creado_en', { ascending:false }).limit(300);
+  q = filtro.caja ? q.eq('caja_id', filtro.caja) : q.eq('propiedad_id', filtro.prop);
+  const { data, error } = await q;
+  if (!$('#kh')) return;
+  if (error) return $('#kh').innerHTML = `<div class="err">${esc(errMsg(error))}</div>`;
+  const hist = data || [];
+  await firmarFotos(hist.filter(h => h.accion.startsWith('foto_')).flatMap(h => [h.valor_anterior, h.valor_nuevo]).filter(Boolean));
+  let mostrar = false;
+  const C = v => `<b>${mostrar ? esc(v || '') : '••••'}</b>`;
+  const enlaceFoto = (p, t) => fotoUrl(p) ? ` <a href="${esc(fotoUrl(p))}" target="_blank" rel="noopener">${t}</a>` : '';
+  const texto = h => ({
+    caja_creada:     `Caja agregada con la clave ${C(h.valor_nuevo)}`,
+    clave_cambiada:  `Clave cambiada de ${C(h.valor_anterior)} a ${C(h.valor_nuevo)}`,
+    caja_editada:    `Datos de la caja: “${esc(h.valor_anterior)}” → “${esc(h.valor_nuevo)}”`,
+    foto_agregada:   `Foto de ubicación agregada.${enlaceFoto(h.valor_nuevo, 'Ver foto')}`,
+    foto_cambiada:   `Foto de ubicación cambiada.${enlaceFoto(h.valor_anterior, 'Ver anterior')}${enlaceFoto(h.valor_nuevo, ' · Ver nueva')}`,
+    foto_quitada:    `Foto de ubicación quitada.${enlaceFoto(h.valor_anterior, 'Ver foto anterior')}`,
+    caja_archivada:  'Caja archivada',
+    caja_restaurada: 'Caja restaurada',
+    caja_eliminada:  `Caja eliminada junto con la propiedad (última clave ${C(h.valor_anterior)})`
+  })[h.accion] || esc(h.accion);
+  const pintar = () => {
+    $('#kh').innerHTML = hist.length ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="k-meta">${hist.length} registro(s)${hist.length === 300 ? ' (los 300 más recientes)' : ''}</span>
+        <button class="btn sec sm" id="kh-ver" type="button">${mostrar ? '🙈 Ocultar claves' : '👁 Mostrar claves'}</button>
+      </div>
+      <ul class="timeline k-hist">${hist.map(h => `<li>
+        <div class="when">${fecha(h.creado_en)} · ${esc(nombre(h.usuario_id) === '—' ? 'Sistema' : nombre(h.usuario_id))}</div>
+        ${filtro.prop ? `<div class="what">${esc(h.caja_nombre || '')}</div>` : ''}
+        <div class="txt">${texto(h)}</div>
+        ${h.motivo ? `<div class="txt" style="color:var(--muted)">Motivo: ${esc(h.motivo)}</div>` : ''}
+      </li>`).join('')}</ul>`
+      : '<div class="loading">Aún no hay cambios registrados</div>';
+    const b = $('#kh-ver'); if (b) b.onclick = () => { mostrar = !mostrar; pintar(); };
+  };
+  pintar();
+}
+
+/* =====================================================================
    MI CUENTA
    ===================================================================== */
 $('#b-cuenta').addEventListener('click', () => {
@@ -2257,6 +2721,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden || !S.perfil) return;
   cargarActivos(); cargarNotifs();
   if (S.vista === 'mis') cargarMis(true);
+  if (S.vista === 'claves') cargarClaves(true);
   pintarPush();
 });
 </script>

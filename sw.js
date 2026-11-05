@@ -5,7 +5,7 @@
    · Permite instalar el sitio como app. No guarda copias viejas del sistema:
      siempre carga la versión más reciente de GitHub (solo usa la copia si no hay internet).
    ===================================================================== */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = 'ama-llaves-' + VERSION;
 
 self.addEventListener('install', e => {
@@ -39,7 +39,8 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data && e.data.text() }; }
   const nuevo = /^Nuevo reporte/i.test(d.body || '');
-  const titulo = (nuevo ? '🔔 ' : '📬 ') + (d.title || 'Reportes Ama de Llaves');
+  const clave = d.vista === 'claves';          // aviso de "Claves de caja" (nunca trae la clave)
+  const titulo = (clave ? '🔑 ' : nuevo ? '🔔 ' : '📬 ') + (d.title || 'Reportes Ama de Llaves');
   e.waitUntil((async () => {
     await self.registration.showNotification(titulo, {
       body: d.body || 'Hay una novedad en un reporte',
@@ -50,7 +51,7 @@ self.addEventListener('push', e => {
       requireInteraction: nuevo,          // los reportes nuevos se quedan en pantalla hasta tocarlos
       vibrate: [250, 120, 250, 120, 250],
       timestamp: Date.now(),
-      data: { url: d.url || './', reporte_id: d.reporte_id || null }
+      data: { url: d.url || './', reporte_id: d.reporte_id || null, vista: d.vista || null, caja_id: d.caja_id || null }
     });
     if (d.badge && self.navigator.setAppBadge) { try { await self.navigator.setAppBadge(d.badge); } catch (err) {} }
     // Si el sistema está abierto, que actualice la campana y los casos
@@ -62,13 +63,14 @@ self.addEventListener('push', e => {
 /* ---------- Tocar la notificación: abre el caso ---------- */
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const { url, reporte_id } = e.notification.data || {};
+  const { url, reporte_id, vista, caja_id } = e.notification.data || {};
   e.waitUntil((async () => {
     const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const abierta = ventanas.find(c => c.url.startsWith(self.registration.scope));
     if (abierta) {
       await abierta.focus();
       if (reporte_id) abierta.postMessage({ tipo: 'abrir-caso', reporte_id });
+      else if (vista) abierta.postMessage({ tipo: 'abrir-vista', vista, caja_id });
       return;
     }
     await self.clients.openWindow(new URL(url || './', self.registration.scope).href);
