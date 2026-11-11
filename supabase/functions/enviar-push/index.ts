@@ -35,7 +35,7 @@ async function config() {
 
 type Aviso = {
   title: string; body: string; tag: string; url: string;
-  reporte_id?: number; badge?: number; vista?: string; caja_id?: number; alerta?: boolean;
+  reporte_id?: number; badge?: number; vista?: string; caja_id?: number; alerta?: boolean; fecha?: string;
 };
 
 async function enviarA(usuarioId: string, aviso: Aviso) {
@@ -79,9 +79,10 @@ Deno.serve(async (req) => {
         ? {
           title: `${n.numero_caso || "Ocupación"}${lugar}`,
           body: n.mensaje,
-          tag: "ocupacion-" + (n.propiedad_nombre ? n.id : (n.numero_caso || n.id)),
-          url: "./?ocupacion=1",
+          tag: "ocupacion-" + (n.propiedad_nombre ? n.id : (n.numero_caso || n.id) + (n.fecha_ref || "")),
+          url: "./?ocupacion=" + (n.fecha_ref || "1"),   // abre el reporte de ese día
           vista: "ocupacion",
+          fecha: n.fecha_ref ?? undefined,
           alerta: /Ingresos|ingreso \(/.test(n.numero_caso || ""),
           badge: count || 1,
         }

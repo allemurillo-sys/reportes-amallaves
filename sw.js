@@ -5,7 +5,7 @@
    · Permite instalar el sitio como app. No guarda copias viejas del sistema:
      siempre carga la versión más reciente de GitHub (solo usa la copia si no hay internet).
    ===================================================================== */
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = 'ama-llaves-' + VERSION;
 
 self.addEventListener('install', e => {
@@ -52,7 +52,7 @@ self.addEventListener('push', e => {
       requireInteraction: nuevo || !!d.alerta,   // reportes nuevos y alertas de ingresos se quedan en pantalla hasta tocarlos
       vibrate: [250, 120, 250, 120, 250],
       timestamp: Date.now(),
-      data: { url: d.url || './', reporte_id: d.reporte_id || null, vista: d.vista || null, caja_id: d.caja_id || null }
+      data: { url: d.url || './', reporte_id: d.reporte_id || null, vista: d.vista || null, caja_id: d.caja_id || null, fecha: d.fecha || null }
     });
     if (d.badge && self.navigator.setAppBadge) { try { await self.navigator.setAppBadge(d.badge); } catch (err) {} }
     // Si el sistema está abierto, que actualice la campana y los casos
@@ -64,14 +64,14 @@ self.addEventListener('push', e => {
 /* ---------- Tocar la notificación: abre el caso ---------- */
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const { url, reporte_id, vista, caja_id } = e.notification.data || {};
+  const { url, reporte_id, vista, caja_id, fecha } = e.notification.data || {};
   e.waitUntil((async () => {
     const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const abierta = ventanas.find(c => c.url.startsWith(self.registration.scope));
     if (abierta) {
       await abierta.focus();
       if (reporte_id) abierta.postMessage({ tipo: 'abrir-caso', reporte_id });
-      else if (vista) abierta.postMessage({ tipo: 'abrir-vista', vista, caja_id });
+      else if (vista) abierta.postMessage({ tipo: 'abrir-vista', vista, caja_id, fecha });
       return;
     }
     await self.clients.openWindow(new URL(url || './', self.registration.scope).href);

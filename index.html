@@ -343,6 +343,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 @keyframes oflash{from{background:#fdf1dc}to{background:transparent}}
 .o-bita{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;color:var(--muted);margin:-6px 0 14px}
 .o-bita b{color:var(--ink)}
+.o-term{background:var(--baja-bg);color:var(--baja);border-radius:99px;padding:3px 10px}
+.o-term b{color:var(--baja)}
+.o-prep{background:#fdf4e3;color:var(--media);font-weight:700;border-radius:99px;padding:3px 10px}
 .o-lock{background:#e6e8ea;color:#3b4448;font-weight:700;border-radius:99px;padding:3px 10px}
 .o-abierto{font-size:12px}
 .o-aviso.rojo{background:var(--alta-bg);border-color:#f3c2bc;color:var(--alta)}
@@ -608,6 +611,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <option value="lista">Orden: como el Excel</option>
         </select>
         <button class="btn sec sm hidden" id="o-copiar">⧉ Armar desde el día anterior</button>
+        <button class="btn sm ok hidden" id="o-terminar">✅ Reporte terminado</button>
         <button class="btn sec sm" id="o-hist">🕘 Bitácora</button>
         <button class="btn sec sm" id="o-excel">⬇ Excel</button>
       </div>
@@ -857,7 +861,7 @@ async function iniciarSesion(){
   prepararPush();
   if (S.casoPendiente) { const id = S.casoPendiente; S.casoPendiente = null; abrirCasoPush(id); }
   else if (S.clavesPendiente) { const k = S.clavesPendiente; S.clavesPendiente = null; abrirClavesPush(k.caja); }
-  else if (S.ocupPendiente) { S.ocupPendiente = false; abrirOcupPush(); }
+  else if (S.ocupPendiente) { const f = S.ocupPendiente; S.ocupPendiente = false; abrirOcupPush(typeof f === 'string' ? f : null); }
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
   S.intervalos.push(setInterval(async () => {
@@ -1228,19 +1232,19 @@ function toastOcupacion(n){
   $('#toasts').prepend(el);
   beep(); if (alerta) setTimeout(beep, 900);
 }
-function irAOcupacionHoy(){ O.fecha = oHoy(); O.filtro = 'todas'; cerrarModal(); irA('ocupacion'); }
-function abrirOcupPush(){
-  if (!S.perfil) { S.ocupPendiente = true; return; }
+function irAOcupacionHoy(f){ O.fecha = /^\d{4}-\d{2}-\d{2}$/.test(f || '') ? f : oHoy(); O.filtro = 'todas'; cerrarModal(); irA('ocupacion'); }
+function abrirOcupPush(f){
+  if (!S.perfil) { S.ocupPendiente = f || true; return; }
   const ids = S.notifs.filter(n => !n.leida && n.tipo === 'ocupacion').map(n => n.id);
   if (ids.length) { S.notifs.forEach(n => { if (ids.includes(n.id)) n.leida = true; }); pintarCampana(); sb.rpc('marcar_leidas', { p_ids:ids }); }
   if (S.alertaId || S.forzadoId) return;
-  if (puedeOcup()) irAOcupacionHoy();
+  if (puedeOcup()) irAOcupacionHoy(f);
 }
 async function abrirNotif(n){
   if (S.forzadoId) return aviso('Primero responda el caso que tiene abierto', true);
   if (!n.leida) { n.leida = true; pintarCampana(); sb.rpc('marcar_leidas', { p_ids:[n.id] }); }
   if (n.tipo === 'clave') { cerrarModal(); return irAClaves(n.caja_id); }
-  if (n.tipo === 'ocupacion') return puedeOcup() ? irAOcupacionHoy() : cerrarModal();
+  if (n.tipo === 'ocupacion') return puedeOcup() ? irAOcupacionHoy(n.fecha_ref) : cerrarModal();
   abrirDetalle(n.reporte_id);
 }
 function verNotifs(){
@@ -2264,7 +2268,7 @@ if ('serviceWorker' in navigator) {
     const d = e.data || {};
     if (d.tipo === 'abrir-caso') abrirCasoPush(+d.reporte_id);
     if (d.tipo === 'abrir-vista' && d.vista === 'claves') abrirClavesPush(+d.caja_id || null);
-    if (d.tipo === 'abrir-vista' && d.vista === 'ocupacion') abrirOcupPush();
+    if (d.tipo === 'abrir-vista' && d.vista === 'ocupacion') abrirOcupPush(d.fecha);
     if (d.tipo === 'push' && S.perfil) { cargarNotifs(); cargarActivos(); if (S.vista === 'claves') cargarClaves(true); if (S.vista === 'ocupacion') cargarOcupacion(true); }
   });
 }
@@ -2280,7 +2284,7 @@ function abrirClavesPush(cajaId){
   const q = new URLSearchParams(location.search);
   S.casoPendiente = +q.get('caso') || null;
   S.clavesPendiente = q.has('claves') ? { caja:+q.get('claves') || null } : null;
-  S.ocupPendiente = q.has('ocupacion');
+  S.ocupPendiente = q.has('ocupacion') ? (q.get('ocupacion') || true) : false;
   if (S.casoPendiente || S.clavesPendiente || S.ocupPendiente) history.replaceState(null, '', location.pathname);
 })();
 
@@ -3020,8 +3024,12 @@ function pintarOcupacion(){
   $('#o-dia').innerHTML = (rel ? `<b>${rel}</b> · ` : '') + esc(oFechaTxt(f));
   O.cerradoPintado = oCerrado();
   $('#o-copiar').classList.toggle('hidden', !oEditar());
+  $('#o-terminar').classList.toggle('hidden', !oEditar());
+  $('#o-terminar').textContent = O.dia?.terminado_en ? '📣 Avisar actualización' : '✅ Reporte terminado';
   const dia = O.dia;
   $('#o-bita').innerHTML = `<span>🗂️ ${dia?.creado_por ? `Creado por <b>${esc(quienRol(dia.creado_por))}</b> · ${esc(fecha(dia.creado_en))}` : 'Operaciones aún no ha creado este tablero'}</span>`
+    + (dia?.terminado_en ? `<span class="o-term">📋 Terminado por <b>${esc(quienRol(dia.terminado_por))}</b> · ${esc(fecha(dia.terminado_en))}${dia.avisos_terminado > 1 ? ' (actualizado)' : ''}</span>`
+       : !oCerrado() ? '<span class="o-prep">⏳ En preparación</span>' : '')
     + (oCerrado() ? `<span class="o-lock">🔒 ${dia?.archivado_en ? 'Archivado el ' + esc(fecha(dia.archivado_en)) : f === hoy ? 'Cerrado a las 8:15 p. m.' : 'Día cerrado'} · solo lectura</span>`
        : f === hoy ? `<span class="o-abierto">Se archiva hoy a las 8:15 p. m.</span>` : '');
   $('#o-f').value = [...$('#o-f').options].some(o => o.value === O.filtro) ? O.filtro : '';
@@ -3171,6 +3179,22 @@ async function oCopiar(){
   cargarOcupacion(true);
 }
 
+/* ---------- Reporte terminado: avisa a ama de llaves y mucamas ---------- */
+async function oTerminar(){
+  const sinAmanece = oProps().filter(p => !oFila(p.id).estado);
+  const act = !!O.dia?.terminado_en;
+  let msg = act ? `¿Avisar a ama de llaves y mucamas que el ${oTitulo()} tiene cambios?`
+                : `¿Marcar el ${oTitulo()} como terminado?\n\nSe avisará a ama de llaves, supervisoras y mucamas que ya pueden revisarlo.`;
+  if (sinAmanece.length) msg += `\n\n⚠️ ${sinAmanece.length} propiedad(es) aún no tienen "Amanece": ${sinAmanece.slice(0, 8).map(p => p.nombre).join(', ')}${sinAmanece.length > 8 ? '…' : ''}`;
+  if (!confirm(msg)) return;
+  const b = $('#o-terminar'); b.disabled = true;
+  const { data, error } = await sb.rpc('ocupacion_terminar', { p_fecha:O.fecha });
+  b.disabled = false;
+  if (error) return aviso(errMsg(error), true);
+  aviso(`${act ? 'Actualización avisada' : 'Reporte terminado'}: aviso enviado a ${data} persona(s)`);
+  cargarOcupacion(true);
+}
+
 /* ---------- Historial del día ---------- */
 async function oHistorial(){
   if (!abrirModal(`<div class="m-head"><div><h3>Bitácora · ${esc(oTitulo())}</h3><div style="color:var(--muted);font-size:13px">${esc(oFechaTxt(O.fecha))}</div></div>
@@ -3179,7 +3203,7 @@ async function oHistorial(){
   const { data, error } = await sb.from('ocupacion_historial').select('*').eq('fecha', O.fecha).order('creado_en', { ascending:false }).limit(300);
   if (!$('#oh')) return;
   if (error) return $('#oh').innerHTML = `<div class="err">${esc(errMsg(error))}</div>`;
-  const ic = { tablero:'🗂️', limpieza:'🧹', copia:'⧉', creado:'🆕', archivo:'🔒', aviso:'📣', alerta:'⚠️' };
+  const ic = { tablero:'🗂️', limpieza:'🧹', copia:'⧉', creado:'🆕', archivo:'🔒', aviso:'📣', alerta:'⚠️', terminado:'📋' };
   $('#oh').innerHTML = (data || []).length ? `<ul class="timeline">${data.map(h => `<li>
       <div class="when">${fecha(h.creado_en)} · ${esc(quienRol(h.usuario_id))}</div>
       ${h.propiedad_nombre ? `<div class="what">${esc(h.propiedad_nombre)}</div>` : ''}
@@ -3220,6 +3244,7 @@ $('#o-fecha').onchange = e => oIrFecha(e.target.value);
 $('#o-q').oninput = () => pintarOcupacion();
 $('#o-f').onchange = e => { O.filtro = e.target.value || 'todas'; pintarOcupacion(); };
 $('#o-copiar').onclick = oCopiar;
+$('#o-terminar').onclick = oTerminar;
 $('#o-hist').onclick = oHistorial;
 $('#o-excel').onclick = oExcel;
 const oClickStats = e => { const b = e.target.closest('[data-of]'); if (!b) return; O.filtro = O.filtro === b.dataset.of ? 'todas' : b.dataset.of; pintarOcupacion(); };
