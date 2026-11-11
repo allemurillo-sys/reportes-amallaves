@@ -11,7 +11,7 @@
 --       ocupacion_ver       → ver el tablero (todos)
 --       ocupacion_editar    → llenar el tablero (Operaciones)
 --       ocupacion_limpieza  → marcar el estado de limpieza (Ama de llaves, Supervisora, Mucama)
--- Fecha: 2026-11-10 · PENDIENTE de aplicar (esperando aprobación de Allen).
+-- Fecha: 2026-11-10 · YA APLICADO en el proyecto ama-llaves.
 -- =====================================================================
 
 -- 1) Permisos -----------------------------------------------------------
@@ -178,13 +178,12 @@ do $$ begin
   end if;
 end $$;
 
--- 6) Orden y grupos iniciales (como en el Excel; se cambian en Mantenimiento › Propiedades)
-update public.propiedades p set orden = v.o, grupo = v.g from (values
-  ('Villa Mandala',10,null),('Villa tropical',20,null),('Villa Arthur',30,null),('Villa Graceland',40,null),
-  ('Villa Foresta',60,null),('Villa Ensueño',70,null),('Villa Harmony',80,null),('Villa Paraíso',90,null),
-  ('CH1',110,'Apartamentos'),('CH2',120,'Apartamentos'),('Sueños 1',130,'Apartamentos'),('Sueños 2',140,'Apartamentos'),
-  ('Sueños 3',150,'Apartamentos'),('Sueños 4',160,'Apartamentos'),('Sueños 5',170,'Apartamentos'),
-  ('Fonda 1',180,'Apartamentos'),('Fonda 2',190,'Apartamentos'),('Yaras 5',200,'Apartamentos'),('Yaras 6',210,'Apartamentos'),
-  ('Villa Ohana',220,'Apartamentos'),('Casa Luis',230,'Apartamentos'),('Azul 1',260,'Apartamentos'),('Azul 2',270,'Apartamentos'),
-  ('Luba',320,'Apartamentos')
-) as v(n,o,g) where p.nombre = v.n and p.orden is null;
+-- 6) Orden inicial (igual al Excel, según la equivalencia que dio Allen; se cambia en Mantenimiento › Propiedades)
+update public.propiedades p set orden = v.o from (values
+  ('Villa Mandala',10),('Villa tropical',20),('Villa Arthur',30),('Villa Graceland',40),('Villa Diria',50),
+  ('Villa Foresta',60),('Villa Ensueño',70),('Villa Harmony',80),('Villa Paraíso',90),
+  ('CH1',100),('CH2',110),('Sueños 1',120),('Sueños 2',130),('Sueños 3',140),('Sueños 4',150),('Sueños 5',160),
+  ('Fonda 1',170),('Fonda 2',180),('Yaras 5',190),('Yaras 6',200),('Villa Ohana',210),('Casa Luis',220),
+  ('Andrey',230),('Mom',240),('Azul 1',250),('Azul 2',260),
+  ('Habitare 1',270),('Habitare 2',280),('Habitare 3',290),('Habitare 4',300),('Luba',310),('Urban',320)
+) as v(n,o) where p.nombre = v.n and p.orden is null;
