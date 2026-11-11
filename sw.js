@@ -5,7 +5,7 @@
    · Permite instalar el sitio como app. No guarda copias viejas del sistema:
      siempre carga la versión más reciente de GitHub (solo usa la copia si no hay internet).
    ===================================================================== */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'ama-llaves-' + VERSION;
 
 self.addEventListener('install', e => {
@@ -40,7 +40,8 @@ self.addEventListener('push', e => {
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data && e.data.text() }; }
   const nuevo = /^Nuevo reporte/i.test(d.body || '');
   const clave = d.vista === 'claves';          // aviso de "Claves de caja" (nunca trae la clave)
-  const titulo = (clave ? '🔑 ' : nuevo ? '🔔 ' : '📬 ') + (d.title || 'Reportes Ama de Llaves');
+  const ocup = d.vista === 'ocupacion';        // Ocupación: "Lista para el ingreso" o alerta de ingresos (ya traen su ícono)
+  const titulo = (clave ? '🔑 ' : ocup ? '' : nuevo ? '🔔 ' : '📬 ') + (d.title || 'Reportes Ama de Llaves');
   e.waitUntil((async () => {
     await self.registration.showNotification(titulo, {
       body: d.body || 'Hay una novedad en un reporte',
@@ -48,7 +49,7 @@ self.addEventListener('push', e => {
       badge: './iconos/badge-96.png',
       tag: d.tag || 'ama-llaves',
       renotify: true,
-      requireInteraction: nuevo,          // los reportes nuevos se quedan en pantalla hasta tocarlos
+      requireInteraction: nuevo || !!d.alerta,   // reportes nuevos y alertas de ingresos se quedan en pantalla hasta tocarlos
       vibrate: [250, 120, 250, 120, 250],
       timestamp: Date.now(),
       data: { url: d.url || './', reporte_id: d.reporte_id || null, vista: d.vista || null, caja_id: d.caja_id || null }

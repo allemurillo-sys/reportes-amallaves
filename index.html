@@ -293,7 +293,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 /* ---------- Ocupación (tablero del día) ---------- */
 .o-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .o-nav .inp{width:auto;padding:8px 10px}
-.o-dia{font-size:14px;color:var(--muted);font-weight:600;margin:-8px 0 14px;text-transform:capitalize}
+.o-dia{font-size:14px;color:var(--muted);font-weight:600;margin:-8px 0 12px;text-transform:capitalize}
 .o-dia b{color:var(--ink)}
 .o-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:8px}
 .o-stats.limp{grid-template-columns:repeat(5,1fr);margin-bottom:14px}
@@ -337,6 +337,15 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .o-row.guardando{background:#fbfaf7}
 .o-row.flash{animation:oflash 1.4s ease-out}
 @keyframes oflash{from{background:#fdf1dc}to{background:transparent}}
+.o-bita{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;color:var(--muted);margin:-6px 0 14px}
+.o-bita b{color:var(--ink)}
+.o-lock{background:#e6e8ea;color:#3b4448;font-weight:700;border-radius:99px;padding:3px 10px}
+.o-abierto{font-size:12px}
+.o-aviso.rojo{background:var(--alta-bg);border-color:#f3c2bc;color:var(--alta)}
+.o-row.o-pend{box-shadow:inset 4px 0 0 var(--alta);background:#fff8f7}
+.o-quien.o-rojo{color:var(--alta);font-weight:700;font-style:normal}
+.toast.o-toast-alerta{border-left-color:var(--alta)}
+.toast.o-toast-alerta .tt{color:var(--alta)}
 .o-aviso{background:#fdf6ec;border:1px solid #f0dcb8;color:#7a5a1e;border-radius:10px;padding:9px 12px;font-size:13.5px;font-weight:600;margin-bottom:12px}
 @media (max-width:900px){
   .o-stats{grid-template-columns:repeat(3,1fr)}
@@ -566,6 +575,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         </div>
       </div>
       <div class="o-dia" id="o-dia"></div>
+      <div class="o-bita" id="o-bita"></div>
       <div class="o-stats" id="o-stats"></div>
       <div class="o-stats limp" id="o-stats-l"></div>
       <div class="filters">
@@ -587,7 +597,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <option value="l-sin">Limpieza: sin marcar</option>
         </select>
         <button class="btn sec sm hidden" id="o-copiar">⧉ Copiar del día anterior</button>
-        <button class="btn sec sm" id="o-hist">🕘 Historial</button>
+        <button class="btn sec sm" id="o-hist">🕘 Bitácora</button>
         <button class="btn sec sm" id="o-excel">⬇ Excel</button>
       </div>
       <div id="o-aviso"></div>
@@ -836,6 +846,7 @@ async function iniciarSesion(){
   prepararPush();
   if (S.casoPendiente) { const id = S.casoPendiente; S.casoPendiente = null; abrirCasoPush(id); }
   else if (S.clavesPendiente) { const k = S.clavesPendiente; S.clavesPendiente = null; abrirClavesPush(k.caja); }
+  else if (S.ocupPendiente) { S.ocupPendiente = false; abrirOcupPush(); }
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
   S.intervalos.push(setInterval(async () => {
@@ -871,7 +882,7 @@ function mostrarLogin(msg){
   if (S.canalN) { sb.removeChannel(S.canalN); S.canalN = null; }
   if (S.canalK) { sb.removeChannel(S.canalK); S.canalK = null; }
   if (S.canalO) { sb.removeChannel(S.canalO); S.canalO = null; }
-  O.fecha = null; O.filas = new Map(); O.cargado = false; O.filtro = 'todas';
+  O.fecha = null; O.filas = new Map(); O.dia = null; O.cargado = false; O.filtro = 'todas'; O.cerradoPintado = null;
   K.cajas = []; K.fotos = {}; K.cargado = false; ocultarClaves();
   S.alertaId = null; S.toastsVistos.clear(); $('#toasts').innerHTML = '';
   S.notifs = []; S.activos = []; S.permisos = new Set(); S.permisosTxt = '';
@@ -1020,7 +1031,15 @@ function conectarTiempoReal(){
         clearTimeout(O.recargaT);
         O.recargaT = setTimeout(() => { if (S.vista === 'ocupacion') cargarOcupacion(true); }, 500);
       })
+      .on('postgres_changes', { event:'*', schema:'public', table:'ocupacion_dia' }, () => {
+        clearTimeout(O.recargaT);
+        O.recargaT = setTimeout(() => { if (S.vista === 'ocupacion') cargarOcupacion(true); }, 500);
+      })
       .subscribe();
+    // A las 8:15 p. m. el tablero abierto pasa solo a "solo lectura"; a medianoche cambia el aviso de ingresos
+    S.intervalos.push(setInterval(() => {
+      if (S.vista === 'ocupacion' && O.cerradoPintado !== null && oCerrado() !== O.cerradoPintado && !$('#o-lista').contains(document.activeElement)) pintarOcupacion();
+    }, 30000));
   }
 }
 
@@ -1172,6 +1191,7 @@ function nuevaNotif(n){
   S.notifs.unshift(n); pintarCampana();
   const clave = n.tipo === 'clave';
   if (clave && S.vista === 'claves') cargarClaves(true);
+  if (n.tipo === 'ocupacion') return toastOcupacion(n);
   const el = document.createElement('div');
   el.className = 'toast notif'; el.dataset.tipo = 'notif';
   el.innerHTML = `<div class="tt">${clave ? '🔑 Clave de caja' : '📬 Novedad en un reporte'}</div>
@@ -1183,15 +1203,38 @@ function nuevaNotif(n){
   $('#toasts').prepend(el);
   beep();
 }
+// Aviso de Ocupación: "Lista para el ingreso" (recepción) o alerta de ingresos (todos)
+function toastOcupacion(n){
+  if (S.vista === 'ocupacion') cargarOcupacion(true);
+  const alerta = /Ingreso|ingreso \(/.test(n.numero_caso || '');
+  const el = document.createElement('div');
+  el.className = 'toast notif' + (alerta ? ' o-toast-alerta' : ''); el.dataset.tipo = 'notif';
+  el.innerHTML = `<div class="tt">${esc(n.numero_caso || 'Ocupación')}</div>
+    <div class="tb">${n.propiedad_nombre ? `<b>${esc(n.propiedad_nombre)}</b><br>` : ''}<span style="font-size:13px">${esc(n.mensaje)}</span></div>
+    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ver tablero</button></div>`;
+  el.querySelector('[data-cerrar]').onclick = () => el.remove();
+  el.querySelector('[data-ver]').onclick = () => { el.remove(); abrirNotif(n); };
+  $('#toasts').prepend(el);
+  beep(); if (alerta) setTimeout(beep, 900);
+}
+function irAOcupacionHoy(){ O.fecha = oHoy(); O.filtro = 'todas'; cerrarModal(); irA('ocupacion'); }
+function abrirOcupPush(){
+  if (!S.perfil) { S.ocupPendiente = true; return; }
+  const ids = S.notifs.filter(n => !n.leida && n.tipo === 'ocupacion').map(n => n.id);
+  if (ids.length) { S.notifs.forEach(n => { if (ids.includes(n.id)) n.leida = true; }); pintarCampana(); sb.rpc('marcar_leidas', { p_ids:ids }); }
+  if (S.alertaId || S.forzadoId) return;
+  if (puedeOcup()) irAOcupacionHoy();
+}
 async function abrirNotif(n){
   if (S.forzadoId) return aviso('Primero responda el caso que tiene abierto', true);
   if (!n.leida) { n.leida = true; pintarCampana(); sb.rpc('marcar_leidas', { p_ids:[n.id] }); }
   if (n.tipo === 'clave') { cerrarModal(); return irAClaves(n.caja_id); }
+  if (n.tipo === 'ocupacion') return puedeOcup() ? irAOcupacionHoy() : cerrarModal();
   abrirDetalle(n.reporte_id);
 }
 function verNotifs(){
   const items = S.notifs.map(n => `<button class="notif-item ${n.leida ? '' : 'nueva'}" data-notif="${n.id}">
-      <div class="nc">${n.leida ? '' : '● '}${n.tipo === 'clave' ? '🔑 Clave de caja' : esc(n.numero_caso)} · ${esc(n.propiedad_nombre || '')}</div>
+      <div class="nc">${n.leida ? '' : '● '}${n.tipo === 'clave' ? '🔑 Clave de caja' : n.tipo === 'ocupacion' ? '🛏️ ' + esc(n.numero_caso || 'Ocupación') : esc(n.numero_caso)}${n.propiedad_nombre ? ' · ' + esc(n.propiedad_nombre) : ''}</div>
       <div class="nm">${esc(n.mensaje)}</div>
       <div class="nf">${fecha(n.creado_en)}</div></button>`).join('');
   const ok = abrirModal(`<div class="m-head"><div><h3>Notificaciones</h3>
@@ -2210,7 +2253,8 @@ if ('serviceWorker' in navigator) {
     const d = e.data || {};
     if (d.tipo === 'abrir-caso') abrirCasoPush(+d.reporte_id);
     if (d.tipo === 'abrir-vista' && d.vista === 'claves') abrirClavesPush(+d.caja_id || null);
-    if (d.tipo === 'push' && S.perfil) { cargarNotifs(); cargarActivos(); if (S.vista === 'claves') cargarClaves(true); }
+    if (d.tipo === 'abrir-vista' && d.vista === 'ocupacion') abrirOcupPush();
+    if (d.tipo === 'push' && S.perfil) { cargarNotifs(); cargarActivos(); if (S.vista === 'claves') cargarClaves(true); if (S.vista === 'ocupacion') cargarOcupacion(true); }
   });
 }
 // Abrir "Claves de caja" desde una notificación tocada (o un enlace ?claves=)
@@ -2225,7 +2269,8 @@ function abrirClavesPush(cajaId){
   const q = new URLSearchParams(location.search);
   S.casoPendiente = +q.get('caso') || null;
   S.clavesPendiente = q.has('claves') ? { caja:+q.get('claves') || null } : null;
-  if (S.casoPendiente || S.clavesPendiente) history.replaceState(null, '', location.pathname);
+  S.ocupPendiente = q.has('ocupacion');
+  if (S.casoPendiente || S.clavesPendiente || S.ocupPendiente) history.replaceState(null, '', location.pathname);
 })();
 
 /* =====================================================================
@@ -2835,13 +2880,21 @@ async function historialClaves(filtro, titulo, sub){
    · Ama de llaves / Supervisora / Mucama marcan el estado de limpieza
      cuando pasan por la propiedad: Lista, Sucia, Pendiente o Bloqueada
    ===================================================================== */
-const O = { fecha:null, filas:new Map(), ultima:new Map(), cargado:false, recargaT:null, pend:false, filtro:'todas' };
+const O = { fecha:null, filas:new Map(), ultima:new Map(), dia:null, cargado:false, recargaT:null, pend:false, filtro:'todas', cerradoPintado:null };
+const O_CIERRE = '20:15';            // a esta hora el tablero del día se archiva (solo lectura)
+const O_INGRESO = '3:00 p. m.';      // hora de ingreso de todas las propiedades
 const O_EST = ['-','OCUPADA','SALE','SUCIA','REVISAR'];
 const O_ENT = ['-','LIBRE','ENTRA','BLOQUEADA'];
 const O_LIMP = { lista:'Lista', sucia:'Sucia', pendiente:'Pendiente', bloqueada:'Bloqueada' };
 const O_LIMP_IC = { lista:'✅', sucia:'🧹', pendiente:'⏳', bloqueada:'⛔' };
 function puedeOcup(){ return tengo('ocupacion_ver') || tengo('ocupacion_editar') || tengo('ocupacion_limpieza'); }
-const oEditar = () => tengo('ocupacion_editar');
+const oHoraCR = () => new Date(ahora()).toLocaleTimeString('en-GB', { timeZone:TZ, hour:'2-digit', minute:'2-digit', hour12:false });
+// Días anteriores, hoy desde las 20:15, o si el sistema ya lo archivó: solo lectura para todos
+const oCerrado = () => !!O.fecha && (O.fecha < oHoy() || (O.fecha === oHoy() && oHoraCR() >= O_CIERRE) || !!O.dia?.archivado_en);
+const oEditar = () => tengo('ocupacion_editar') && !oCerrado();
+const quienRol = id => { const pf = S.perfiles[id]; return pf ? `${pf.nombre} (${ROL[pf.rol] || pf.rol})` : 'Sistema'; };
+// Propiedad que entra hoy y todavía no está Lista (regla: todo ingreso debe estar Listo antes de las 3:00 p. m.)
+const oIngresoPend = f => O.fecha === oHoy() && f.entrada === 'ENTRA' && f.limpieza !== 'lista';
 const oHoy = () => new Date(ahora()).toLocaleDateString('en-CA', { timeZone:TZ });
 const oSumar = (iso, d) => { const t = new Date(iso + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); };
 const oFechaTxt = (iso, corto) => new Date(iso + 'T12:00:00Z').toLocaleDateString('es-CR', corto
@@ -2851,26 +2904,27 @@ const oHora = iso => new Date(iso).toLocaleTimeString('es-CR', { timeZone:TZ, ho
 const oProps = () => S.propiedades.filter(p => p.activa && p.en_ocupacion !== false)
   .sort((a, b) => (a.orden ?? 1e6) - (b.orden ?? 1e6) || a.nombre.localeCompare(b.nombre, 'es'));
 const oFila = pid => O.filas.get(pid) || { estado:'-', entrada:'-', noches:null, pax:null, nota:null, limpieza:null };
-const oPuedeLimpiar = () => tengo('ocupacion_limpieza') && (O.fecha === oHoy() || S.perfil?.rol === 'admin');
+const oPuedeLimpiar = () => tengo('ocupacion_limpieza') && !oCerrado() && (O.fecha === oHoy() || S.perfil?.rol === 'admin');
 
 async function cargarOcupacion(silencioso){
   if (!S.perfil || !puedeOcup()) return;
   if (!O.fecha) O.fecha = oHoy();
   const f = O.fecha;
   $('#o-fecha').value = f;
-  $('#o-copiar').classList.toggle('hidden', !oEditar());
   if (!silencioso) {
     if (!O.cargado) $('#o-lista').innerHTML = '<div class="loading">Cargando…</div>';
     await cargarPropiedades();
   }
-  const [a, b] = await Promise.all([
+  const [a, b, d] = await Promise.all([
     sb.from('ocupacion').select('*').eq('fecha', f),
-    sb.rpc('ocupacion_ultima_limpieza', { p_fecha:f })
+    sb.rpc('ocupacion_ultima_limpieza', { p_fecha:f }),
+    sb.from('ocupacion_dia').select('*').eq('fecha', f).maybeSingle()
   ]);
   if (f !== O.fecha) return;                       // cambiaron de día mientras cargaba
   if (a.error) { if (!silencioso) $('#o-lista').innerHTML = `<div class="err" style="padding:16px">${esc(errMsg(a.error))}</div>`; return; }
   O.filas = new Map((a.data || []).map(r => [r.propiedad_id, r]));
   O.ultima = new Map((b.data || []).map(r => [r.propiedad_id, r]));
+  O.dia = d.data || null;
   O.cargado = true;
   if (S.vista !== 'ocupacion') return;
   // Si alguien está escribiendo en el tablero, se repinta cuando termine (para no borrarle lo que escribe)
@@ -2923,13 +2977,23 @@ function pintarOcupacion(){
   const hoy = oHoy(), f = O.fecha;
   const rel = f === hoy ? 'Hoy' : f === oSumar(hoy, 1) ? 'Mañana' : f === oSumar(hoy, -1) ? 'Ayer' : '';
   $('#o-dia').innerHTML = (rel ? `<b>${rel}</b> · ` : '') + esc(oFechaTxt(f));
+  O.cerradoPintado = oCerrado();
+  $('#o-copiar').classList.toggle('hidden', !oEditar());
+  const dia = O.dia;
+  $('#o-bita').innerHTML = `<span>🗂️ ${dia?.creado_por ? `Creado por <b>${esc(quienRol(dia.creado_por))}</b> · ${esc(fecha(dia.creado_en))}` : 'Operaciones aún no ha creado este tablero'}</span>`
+    + (oCerrado() ? `<span class="o-lock">🔒 ${dia?.archivado_en ? 'Archivado el ' + esc(fecha(dia.archivado_en)) : f === hoy ? 'Cerrado a las 8:15 p. m.' : 'Día cerrado'} · solo lectura</span>`
+       : f === hoy ? `<span class="o-abierto">Se archiva hoy a las 8:15 p. m.</span>` : '');
   $('#o-f').value = [...$('#o-f').options].some(o => o.value === O.filtro) ? O.filtro : '';
   pintarStatsOcup();
 
   const avisos = [];
-  if (tengo('ocupacion_limpieza') && f !== hoy && S.perfil.rol !== 'admin') avisos.push('El estado de limpieza solo se marca en el tablero de hoy.');
+  const pend = oProps().filter(p => oIngresoPend(oFila(p.id)));
+  if (pend.length) avisos.push(`<div class="o-aviso rojo">⚠️ <b>${pend.length} ${pend.length === 1 ? 'propiedad entra' : 'propiedades entran'} hoy (${O_INGRESO})</b> y aún no ${pend.length === 1 ? 'está lista' : 'están listas'}: `
+    + pend.map(p => `${esc(p.nombre)} (${oFila(p.id).limpieza ? O_LIMP[oFila(p.id).limpieza] : 'sin marcar'})`).join(', ')
+    + `.<br><span style="font-weight:500">Alertas a todo el personal a las 2:00, 2:30 y 3:00 p. m. mientras no estén listas.</span></div>`);
+  if (tengo('ocupacion_limpieza') && f !== hoy && S.perfil.rol !== 'admin' && !oCerrado()) avisos.push('El estado de limpieza solo se marca en el tablero de hoy.');
   if (oEditar() && !O.filas.size) avisos.push('Este día aún no tiene datos. Puede llenarlo aquí o tocar <b>⧉ Copiar del día anterior</b>.');
-  $('#o-aviso').innerHTML = avisos.map(a => `<div class="o-aviso">${a}</div>`).join('');
+  $('#o-aviso').innerHTML = avisos.map(a => a.startsWith('<div') ? a : `<div class="o-aviso">${a}</div>`).join('');
 
   const q = norm($('#o-q').value);
   const props = oProps().filter(p => (!q || norm(p.nombre + ' ' + (p.grupo || '')).includes(q)) && oPasaFiltro(oFila(p.id)));
@@ -2955,14 +3019,15 @@ function oFilaHTML(p){
     : `<span class="o-chip" style="min-width:0">${v ?? '—'}</span>`;
 
   let quien = '';
-  if (f.limpieza) quien = `<div class="o-quien">${esc(nombre(f.limpieza_por))} · ${oHora(f.limpieza_en)}${f.limpieza_nota ? ` · “${esc(f.limpieza_nota)}”` : ''}</div>`;
+  if (f.limpieza) quien = `<div class="o-quien">Marcó: <b>${esc(quienRol(f.limpieza_por))}</b> · ${oHora(f.limpieza_en)}${f.limpieza_nota ? ` · “${esc(f.limpieza_nota)}”` : ''}</div>`;
+  if (oIngresoPend(f)) quien += `<div class="o-quien o-rojo">⚠️ Entra hoy a las ${O_INGRESO}: debe quedar Lista</div>`;
   else { const u = O.ultima.get(p.id); if (u) quien = `<div class="o-quien ant">Última marca: ${O_LIMP[u.limpieza]} · ${esc(oFechaTxt(u.fecha, true))} (${esc(nombre(u.limpieza_por))})</div>`; }
   const limp = lim
     ? Object.keys(O_LIMP).map(k => `<button type="button" class="o-lb l-${k} ${f.limpieza === k ? 'on' : ''}" data-limp="${k}"><span class="o-ic">${O_LIMP_IC[k]}</span> <span>${O_LIMP[k]}</span></button>`).join('')
       + `<button type="button" class="o-lb o-nb" data-lnota title="Agregar nota o quitar la marca" aria-label="Nota de limpieza">📝</button>`
     : (f.limpieza ? `<span class="o-lc l-${f.limpieza}">${O_LIMP_IC[f.limpieza]} ${O_LIMP[f.limpieza]}</span>` : '<span class="o-lc l-vacio">Sin marcar</span>');
 
-  return `<div class="o-row" data-pid="${p.id}">
+  return `<div class="o-row ${oIngresoPend(f) ? 'o-pend' : ''}" data-pid="${p.id}">
     <div class="o-nom"><div style="min-width:0"><span>${esc(p.nombre)}</span>
       ${f.nota ? `<div class="o-nota">📝 ${esc(f.nota)}</div>` : ''}</div>
       ${ed ? `<button type="button" class="o-ren" data-onota title="Nota de recepción" aria-label="Nota de recepción">📝</button>` : ''}
@@ -3057,15 +3122,15 @@ async function oCopiar(){
 
 /* ---------- Historial del día ---------- */
 async function oHistorial(){
-  if (!abrirModal(`<div class="m-head"><div><h3>Historial del tablero</h3><div style="color:var(--muted);font-size:13px">${esc(oFechaTxt(O.fecha))}</div></div>
+  if (!abrirModal(`<div class="m-head"><div><h3>Bitácora del tablero</h3><div style="color:var(--muted);font-size:13px">${esc(oFechaTxt(O.fecha))}</div></div>
       <button class="x" data-x aria-label="Cerrar">✕</button></div>
     <div class="m-body" id="oh"><div class="loading">Cargando…</div></div>`)) return;
   const { data, error } = await sb.from('ocupacion_historial').select('*').eq('fecha', O.fecha).order('creado_en', { ascending:false }).limit(300);
   if (!$('#oh')) return;
   if (error) return $('#oh').innerHTML = `<div class="err">${esc(errMsg(error))}</div>`;
-  const ic = { tablero:'🗂️', limpieza:'🧹', copia:'⧉' };
+  const ic = { tablero:'🗂️', limpieza:'🧹', copia:'⧉', creado:'🆕', archivo:'🔒', aviso:'📣', alerta:'⚠️' };
   $('#oh').innerHTML = (data || []).length ? `<ul class="timeline">${data.map(h => `<li>
-      <div class="when">${fecha(h.creado_en)} · ${esc(nombre(h.usuario_id))}</div>
+      <div class="when">${fecha(h.creado_en)} · ${esc(quienRol(h.usuario_id))}</div>
       ${h.propiedad_nombre ? `<div class="what">${esc(h.propiedad_nombre)}</div>` : ''}
       <div class="txt">${ic[h.tipo] || ''} ${esc(h.detalle || '')}</div></li>`).join('')}</ul>`
     : '<div class="loading">Aún no hay cambios en este día</div>';
@@ -3074,19 +3139,20 @@ async function oHistorial(){
 /* ---------- Excel del día (mismo formato del reporte anterior) ---------- */
 function oExcel(){
   const c = oCuenta();
-  const filas = [[`REPORTE DE OCUPACIÓN · ${oFechaTxt(O.fecha).toUpperCase()}`], [],
+  const filas = [[`REPORTE DE OCUPACIÓN · ${oFechaTxt(O.fecha).toUpperCase()}`],
+    [`Creado por: ${O.dia?.creado_por ? quienRol(O.dia.creado_por) + ' · ' + fecha(O.dia.creado_en) : '—'}${O.dia?.archivado_en ? '   ·   Archivado: ' + fecha(O.dia.archivado_en) : ''}`], [],
     ['PROPIEDAD', 'GRUPO', 'ESTADO', 'ENTRADA', 'Noches', 'Pax', 'Nota recepción', 'LIMPIEZA', 'Marcada por', 'Hora', 'Nota limpieza']];
   oProps().forEach(p => {
     const f = oFila(p.id);
     filas.push([p.nombre, p.grupo || '', f.estado, f.entrada, f.noches ?? '', f.pax ?? '', f.nota || '',
-      f.limpieza ? O_LIMP[f.limpieza].toUpperCase() : 'SIN MARCAR', f.limpieza ? nombre(f.limpieza_por) : '',
+      f.limpieza ? O_LIMP[f.limpieza].toUpperCase() : 'SIN MARCAR', f.limpieza ? quienRol(f.limpieza_por) : '',
       f.limpieza_en ? oHora(f.limpieza_en) : '', f.limpieza_nota || '']);
   });
   filas.push([], ['RESUMEN'], ['OCUPADAS', c.ocupada], ['ENTRADAS', c.entra], ['SALIDAS', c.sale], ['LIBRES', c.libre],
     ['BLOQUEADAS', c.bloq], ['PAX', c.pax], [], ['LIMPIEZA'], ['LISTAS', c.lista], ['SUCIAS', c.sucia],
     ['PENDIENTES', c.pendiente], ['BLOQUEADAS', c.bloqueada], ['SIN MARCAR', c.sin]);
   const ws = XLSX.utils.aoa_to_sheet(filas);
-  ws['!cols'] = [{ wch:18 }, { wch:14 }, { wch:11 }, { wch:11 }, { wch:7 }, { wch:5 }, { wch:28 }, { wch:12 }, { wch:16 }, { wch:9 }, { wch:28 }];
+  ws['!cols'] = [{ wch:18 }, { wch:14 }, { wch:11 }, { wch:11 }, { wch:7 }, { wch:5 }, { wch:28 }, { wch:12 }, { wch:26 }, { wch:9 }, { wch:28 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Ocupación');
   XLSX.writeFile(wb, `Ocupacion_${O.fecha}.xlsx`);

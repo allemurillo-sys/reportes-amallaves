@@ -4,7 +4,8 @@
 // aunque el sistema esté cerrado o el celular en reposo.
 //   · La llama la base de datos cuando se crea una notificación (con x-secreto).
 //   · Desde "Mi cuenta", el usuario puede pedir una notificación de prueba.
-//   · Avisos de reportes (abren el caso) y de "Claves de caja" (abren esa sección).
+//   · Avisos de reportes (abren el caso), de "Claves de caja" y de "Ocupación" (abren esa sección).
+//     Las alertas de ingresos (14:00, 14:30, 15:00) se quedan en pantalla hasta tocarlas.
 //     El aviso de claves NUNCA lleva la clave: así no queda a la vista en la pantalla bloqueada.
 // =====================================================================
 import webpush from "npm:web-push@3.6.7";
@@ -34,7 +35,7 @@ async function config() {
 
 type Aviso = {
   title: string; body: string; tag: string; url: string;
-  reporte_id?: number; badge?: number; vista?: string; caja_id?: number;
+  reporte_id?: number; badge?: number; vista?: string; caja_id?: number; alerta?: boolean;
 };
 
 async function enviarA(usuarioId: string, aviso: Aviso) {
@@ -74,7 +75,17 @@ Deno.serve(async (req) => {
       const { count } = await admin.from("notificaciones").select("id", { count: "exact", head: true })
         .eq("usuario_id", n.usuario_id).eq("leida", false);
       const lugar = n.propiedad_nombre ? " · " + n.propiedad_nombre : "";
-      const aviso: Aviso = n.tipo === "clave"
+      const aviso: Aviso = n.tipo === "ocupacion"
+        ? {
+          title: `${n.numero_caso || "Ocupación"}${lugar}`,
+          body: n.mensaje,
+          tag: "ocupacion-" + (n.propiedad_nombre ? n.id : (n.numero_caso || n.id)),
+          url: "./?ocupacion=1",
+          vista: "ocupacion",
+          alerta: /Ingresos|ingreso \(/.test(n.numero_caso || ""),
+          badge: count || 1,
+        }
+        : n.tipo === "clave"
         ? {
           title: `${n.numero_caso || "Clave de caja"}${lugar}`,
           body: n.mensaje,
