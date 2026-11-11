@@ -2891,7 +2891,9 @@ function puedeOcup(){ return tengo('ocupacion_ver') || tengo('ocupacion_editar')
 const oHoraCR = () => new Date(ahora()).toLocaleTimeString('en-GB', { timeZone:TZ, hour:'2-digit', minute:'2-digit', hour12:false });
 // Días anteriores, hoy desde las 20:15, o si el sistema ya lo archivó: solo lectura para todos
 const oCerrado = () => !!O.fecha && (O.fecha < oHoy() || (O.fecha === oHoy() && oHoraCR() >= O_CIERRE) || !!O.dia?.archivado_en);
-const oEditar = () => tengo('ocupacion_editar') && !oCerrado();
+const O_ANTELACION = 2;             // Operaciones puede crear el tablero con hasta 2 días de antelación
+const oMaxFecha = () => oSumar(oHoy(), O_ANTELACION);
+const oEditar = () => tengo('ocupacion_editar') && !oCerrado() && O.fecha <= oMaxFecha();
 const quienRol = id => { const pf = S.perfiles[id]; return pf ? `${pf.nombre} (${ROL[pf.rol] || pf.rol})` : 'Sistema'; };
 // Propiedad que entra hoy y todavía no está Lista (regla: todo ingreso debe estar Listo antes de las 3:00 p. m.)
 const oIngresoPend = f => O.fecha === oHoy() && f.entrada === 'ENTRA' && f.limpieza !== 'lista';
@@ -2911,6 +2913,8 @@ async function cargarOcupacion(silencioso){
   if (!O.fecha) O.fecha = oHoy();
   const f = O.fecha;
   $('#o-fecha').value = f;
+  $('#o-fecha').max = oMaxFecha();
+  $('#o-sig').disabled = f >= oMaxFecha();
   if (!silencioso) {
     if (!O.cargado) $('#o-lista').innerHTML = '<div class="loading">Cargando…</div>';
     await cargarPropiedades();
@@ -2992,6 +2996,7 @@ function pintarOcupacion(){
     + pend.map(p => `${esc(p.nombre)} (${oFila(p.id).limpieza ? O_LIMP[oFila(p.id).limpieza] : 'sin marcar'})`).join(', ')
     + `.<br><span style="font-weight:500">Alertas a todo el personal a las 2:00, 2:30 y 3:00 p. m. mientras no estén listas.</span></div>`);
   if (tengo('ocupacion_limpieza') && f !== hoy && S.perfil.rol !== 'admin' && !oCerrado()) avisos.push('El estado de limpieza solo se marca en el tablero de hoy.');
+  if (tengo('ocupacion_editar') && O.fecha > oMaxFecha()) avisos.push(`El tablero solo se puede crear con hasta ${O_ANTELACION} días de antelación (hasta el ${esc(oFechaTxt(oMaxFecha(), true))}).`);
   if (oEditar() && !O.filas.size) avisos.push('Este día aún no tiene datos. Puede llenarlo aquí o tocar <b>⧉ Copiar del día anterior</b>.');
   $('#o-aviso').innerHTML = avisos.map(a => a.startsWith('<div') ? a : `<div class="o-aviso">${a}</div>`).join('');
 
@@ -3159,7 +3164,7 @@ function oExcel(){
 }
 
 /* ---------- Eventos ---------- */
-function oIrFecha(f){ if (!f) return; O.fecha = f; O.filas = new Map(); O.ultima = new Map(); $('#o-lista').innerHTML = '<div class="loading">Cargando…</div>'; cargarOcupacion(true); }
+function oIrFecha(f){ if (!f) return; if (f > oMaxFecha()) { aviso(`Solo se puede ver hasta ${O_ANTELACION} días adelante`, true); f = oMaxFecha(); } O.fecha = f; O.filas = new Map(); O.ultima = new Map(); $('#o-lista').innerHTML = '<div class="loading">Cargando…</div>'; cargarOcupacion(true); }
 $('#o-ant').onclick = () => oIrFecha(oSumar(O.fecha || oHoy(), -1));
 $('#o-sig').onclick = () => oIrFecha(oSumar(O.fecha || oHoy(), 1));
 $('#o-hoy').onclick = () => oIrFecha(oHoy());
