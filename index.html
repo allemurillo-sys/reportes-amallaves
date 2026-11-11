@@ -308,6 +308,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .o-nom{font-weight:700;display:flex;align-items:center;gap:6px;min-width:0}
 .o-nom span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .o-nom .o-ren{border:0;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;border-radius:6px}
+.o-tarea{font-size:12.5px;font-weight:700;margin-top:3px;white-space:normal;line-height:1.3}
+.o-tarea.t-rojo{color:var(--alta)} .o-tarea.t-naranja{color:#b8590d} .o-tarea.t-amarillo{color:#8a6410}
+.o-tarea.t-morado{color:var(--padmin)} .o-tarea.t-azul{color:var(--ops)} .o-tarea.t-gris{color:var(--muted);font-weight:600}
+.o-tarea.t-verde{color:var(--listo)}
 .o-nota{font-size:12.5px;color:#7a5a1e;margin-top:2px;font-weight:500;white-space:normal}
 .o-lbl{display:none}
 .o-chip{display:inline-block;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;background:#f0eeea;color:var(--muted);min-width:70px;text-align:center}
@@ -582,6 +586,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         <input class="inp" id="o-q" placeholder="Buscar propiedad…" autocomplete="off">
         <select class="inp" id="o-f" style="flex:0 0 auto;min-width:190px">
           <option value="todas">Todas las propiedades</option>
+          <option value="tareas">Con tarea pendiente para ama de llaves</option>
           <option value="mov">Con movimiento (sale / entra)</option>
           <option value="sale">Salen</option>
           <option value="entra">Entran</option>
@@ -589,6 +594,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <option value="libre">Libres</option>
           <option value="bloq">Bloqueadas</option>
           <option value="pax">Con pax</option>
+          <option value="sucia-am">Amanecieron sucias</option>
+          <option value="revisar">Por revisar</option>
           <option value="porlimpiar">Por limpiar (sucia / pendiente / sin marcar)</option>
           <option value="l-lista">Limpieza: listas</option>
           <option value="l-sucia">Limpieza: sucias</option>
@@ -596,7 +603,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           <option value="l-bloqueada">Limpieza: bloqueadas</option>
           <option value="l-sin">Limpieza: sin marcar</option>
         </select>
-        <button class="btn sec sm hidden" id="o-copiar">⧉ Copiar del día anterior</button>
+        <select class="inp" id="o-orden" style="flex:0 0 auto;min-width:150px" aria-label="Orden">
+          <option value="urgencia">Orden: por urgencia</option>
+          <option value="lista">Orden: como el Excel</option>
+        </select>
+        <button class="btn sec sm hidden" id="o-copiar">⧉ Armar desde el día anterior</button>
         <button class="btn sec sm" id="o-hist">🕘 Bitácora</button>
         <button class="btn sec sm" id="o-excel">⬇ Excel</button>
       </div>
@@ -882,7 +893,7 @@ function mostrarLogin(msg){
   if (S.canalN) { sb.removeChannel(S.canalN); S.canalN = null; }
   if (S.canalK) { sb.removeChannel(S.canalK); S.canalK = null; }
   if (S.canalO) { sb.removeChannel(S.canalO); S.canalO = null; }
-  O.fecha = null; O.filas = new Map(); O.dia = null; O.cargado = false; O.filtro = 'todas'; O.cerradoPintado = null;
+  O.fecha = null; O.filas = new Map(); O.dia = null; O.cargado = false; O.filtro = 'todas'; O.cerradoPintado = null; O.orden = null;
   K.cajas = []; K.fotos = {}; K.cargado = false; ocultarClaves();
   S.alertaId = null; S.toastsVistos.clear(); $('#toasts').innerHTML = '';
   S.notifs = []; S.activos = []; S.permisos = new Set(); S.permisosTxt = '';
@@ -2880,11 +2891,29 @@ async function historialClaves(filtro, titulo, sub){
    · Ama de llaves / Supervisora / Mucama marcan el estado de limpieza
      cuando pasan por la propiedad: Lista, Sucia, Pendiente o Bloqueada
    ===================================================================== */
-const O = { fecha:null, filas:new Map(), ultima:new Map(), dia:null, cargado:false, recargaT:null, pend:false, filtro:'todas', cerradoPintado:null };
+const O = { fecha:null, filas:new Map(), ultima:new Map(), dia:null, cargado:false, recargaT:null, pend:false, filtro:'todas', cerradoPintado:null, orden:null };
 const O_CIERRE = '20:15';            // a esta hora el tablero del día se archiva (solo lectura)
 const O_INGRESO = '3:00 p. m.';      // hora de ingreso de todas las propiedades
-const O_EST = ['-','OCUPADA','SALE','SUCIA','REVISAR'];
-const O_ENT = ['-','LIBRE','ENTRA','BLOQUEADA'];
+// "Amanece": cómo inicia la propiedad · "Queda": cómo estará (en la base de datos: estado / entrada)
+const O_AMANECE = { LIBRE:'Libre', SALE:'Sale', OCUPADA:'Ocupada', SUCIA:'Sucia', REVISAR:'Revisar' };
+const O_QUEDA = { LIBRE:'Libre', ENTRA:'Entra', BLOQUEADA:'Bloqueada', OCUPADA:'Ocupada' };
+// Qué le toca a ama de llaves según la combinación Amanece → Queda (n = urgencia: 1 es lo más urgente)
+function oTarea(f){
+  const a = f.estado, q = f.entrada, limpiar = a === 'SALE' || a === 'SUCIA';
+  let t;
+  if (!a && !q) t = { n:8, ic:'⚪', txt:'Operaciones aún no lo indica', c:'gris' };
+  else if (a === 'OCUPADA') t = { n:7, ic:'🔵', txt:'Huésped en la propiedad: sin limpieza programada', c:'azul' };
+  else if (q === 'ENTRA') t = limpiar ? { n:1, ic:'🔴', txt:(a === 'SALE' ? 'Salida y entrada' : 'Sucia con entrada') + ': limpieza completa antes de 3 p. m.', c:'rojo' }
+    : a === 'REVISAR' ? { n:2, ic:'🟠', txt:'Revisar antes de la entrada de las 3 p. m.', c:'naranja' }
+    : { n:2, ic:'🟠', txt:'Entrada: repaso y revisión antes de 3 p. m.', c:'naranja' };
+  else if (limpiar) t = { n:3, ic:'🟡', txt:(a === 'SALE' ? 'Salida' : 'Amaneció sucia') + ': limpieza completa' + (q === 'BLOQUEADA' ? ' (luego queda bloqueada)' : ''), c:'amarillo' };
+  else if (a === 'REVISAR') t = { n:4, ic:'🟣', txt:'Revisar la propiedad', c:'morado' };
+  else if (!a) t = { n:8, ic:'⚪', txt:'Falta indicar cómo amanece', c:'gris' };
+  else t = { n:9, ic:'⚪', txt:q === 'BLOQUEADA' ? 'Bloqueada: sin tarea' : 'Libre: sin tarea', c:'gris' };
+  // Ya quedó Lista: la tarea está hecha y baja al final de la lista
+  if (t.n <= 4 && f.limpieza === 'lista') t = { n:10 + t.n, ic:'✅', txt:q === 'ENTRA' ? 'Lista para la entrada' : 'Hecho: quedó lista', c:'verde' };
+  return t;
+}
 const O_LIMP = { lista:'Lista', sucia:'Sucia', pendiente:'Pendiente', bloqueada:'Bloqueada' };
 const O_LIMP_IC = { lista:'✅', sucia:'🧹', pendiente:'⏳', bloqueada:'⛔' };
 function puedeOcup(){ return tengo('ocupacion_ver') || tengo('ocupacion_editar') || tengo('ocupacion_limpieza'); }
@@ -2908,7 +2937,7 @@ const oTitulo = () => 'Reporte de Limpieza ' + oFechaCorta(O.fecha);
 const oHora = iso => new Date(iso).toLocaleTimeString('es-CR', { timeZone:TZ, hour:'numeric', minute:'2-digit' });
 const oProps = () => S.propiedades.filter(p => p.activa && p.en_ocupacion !== false)
   .sort((a, b) => (a.orden ?? 1e6) - (b.orden ?? 1e6) || a.nombre.localeCompare(b.nombre, 'es'));
-const oFila = pid => O.filas.get(pid) || { estado:'-', entrada:'-', noches:null, pax:null, nota:null, limpieza:null };
+const oFila = pid => O.filas.get(pid) || { estado:null, entrada:null, noches:null, pax:null, nota:null, limpieza:null };
 const oPuedeLimpiar = () => tengo('ocupacion_limpieza') && !oCerrado() && (O.fecha === oHoy() || S.perfil?.rol === 'admin');
 
 async function cargarOcupacion(silencioso){
@@ -2968,6 +2997,9 @@ function pintarStatsOcup(){
 function oPasaFiltro(f){
   switch (O.filtro) {
     case 'mov':       return f.estado === 'SALE' || f.entrada === 'ENTRA';
+    case 'tareas':    return oTarea(f).n <= 4;
+    case 'sucia-am':  return f.estado === 'SUCIA';
+    case 'revisar':   return f.estado === 'REVISAR';
     case 'sale':      return f.estado === 'SALE';
     case 'entra':     return f.entrada === 'ENTRA';
     case 'ocupada':   return f.estado === 'OCUPADA';
@@ -3002,19 +3034,23 @@ function pintarOcupacion(){
     + `.<br><span style="font-weight:500">Alertas a todo el personal a las 2:00, 2:30 y 3:00 p. m. mientras no estén listas.</span></div>`);
   if (tengo('ocupacion_limpieza') && f !== hoy && S.perfil.rol !== 'admin' && !oCerrado()) avisos.push('El estado de limpieza solo se marca en el tablero de hoy.');
   if (tengo('ocupacion_editar') && O.fecha > oMaxFecha()) avisos.push(`El tablero solo se puede crear con hasta ${O_ANTELACION} días de antelación (hasta el ${esc(oFechaTxt(oMaxFecha(), true))}).`);
-  if (oEditar() && !O.filas.size) avisos.push('Este día aún no tiene datos. Puede llenarlo aquí o tocar <b>⧉ Copiar del día anterior</b>.');
+  if (oEditar() && !O.filas.size) avisos.push('Este día aún no tiene datos. Puede llenarlo aquí o tocar <b>⧉ Armar desde el día anterior</b>.');
   $('#o-aviso').innerHTML = avisos.map(a => a.startsWith('<div') ? a : `<div class="o-aviso">${a}</div>`).join('');
 
   const q = norm($('#o-q').value);
-  const props = oProps().filter(p => (!q || norm(p.nombre + ' ' + (p.grupo || '')).includes(q)) && oPasaFiltro(oFila(p.id)));
+  if (!O.orden) O.orden = tengo('ocupacion_editar') ? 'lista' : 'urgencia';   // ama de llaves ve primero lo más urgente
+  $('#o-orden').value = O.orden;
+  const urg = O.orden === 'urgencia';
+  let props = oProps().filter(p => (!q || norm(p.nombre + ' ' + (p.grupo || '')).includes(q)) && oPasaFiltro(oFila(p.id)));
+  if (urg) props = props.map((p, i) => ({ p, i, n:oTarea(oFila(p.id)).n })).sort((a, b) => a.n - b.n || a.i - b.i).map(x => x.p);
   if (!oProps().length) {
     $('#o-lista').innerHTML = '<div class="loading">No hay propiedades para el tablero. Se agregan en Mantenimiento › Propiedades.</div>';
     return;
   }
   if (!props.length) { $('#o-lista').innerHTML = '<div class="loading">Ninguna propiedad coincide con el filtro</div>'; return; }
-  let grupo = null, html = `<div class="o-row o-h"><div>Propiedad</div><div>Estado</div><div>Entrada</div><div>Noches</div><div>Pax</div><div>Limpieza</div></div>`;
+  let grupo = null, html = `<div class="o-row o-h"><div>Propiedad · tarea</div><div>Amanece</div><div>Queda</div><div>Noches</div><div>Pax</div><div>Limpieza</div></div>`;
   props.forEach(p => {
-    if ((p.grupo || null) !== grupo) { grupo = p.grupo || null; if (grupo) html += `<div class="o-grupo">${esc(grupo)}</div>`; }
+    if (!urg && (p.grupo || null) !== grupo) { grupo = p.grupo || null; if (grupo) html += `<div class="o-grupo">${esc(grupo)}</div>`; }
     html += oFilaHTML(p);
   });
   $('#o-lista').innerHTML = html;
@@ -3022,16 +3058,20 @@ function pintarOcupacion(){
 
 function oFilaHTML(p){
   const f = oFila(p.id), ed = oEditar(), lim = oPuedeLimpiar();
-  const sel = (c, lista, v) => `<select class="o-sel o-v-${esc(v)}" data-c="${c}" aria-label="${c === 'estado' ? 'Estado' : 'Entrada'} de ${esc(p.nombre)}">
-      ${lista.map(x => `<option value="${x}" ${x === v ? 'selected' : ''}>${x}</option>`).join('')}</select>`;
-  const chip = v => `<span class="o-chip o-v-${esc(v)}">${esc(v)}</span>`;
+  // Queda: si amanece Ocupada solo puede quedar Ocupada; si no, nunca "Ocupada (sigue)"
+  const opcQueda = Object.keys(O_QUEDA).filter(k => f.estado === 'OCUPADA' ? k === 'OCUPADA' : k !== 'OCUPADA');
+  const sel = (c, mapa, claves, v) => `<select class="o-sel o-v-${esc(v || '')}" data-c="${c}" aria-label="${c === 'estado' ? 'Amanece' : 'Queda'} · ${esc(p.nombre)}">
+      <option value="" ${!v ? 'selected' : ''}>—</option>
+      ${claves.map(x => `<option value="${x}" ${x === v ? 'selected' : ''}>${esc(mapa[x])}</option>`).join('')}</select>`;
+  const chip = (mapa, v) => `<span class="o-chip o-v-${esc(v || '')}">${v ? esc(mapa[v] || v) : '—'}</span>`;
+  const tarea = oTarea(f);
   const num = (c, v, max) => ed ? `<input class="o-num" type="number" min="0" max="${max}" inputmode="numeric" data-c="${c}" value="${v ?? ''}" aria-label="${c} de ${esc(p.nombre)}">`
     : `<span class="o-chip" style="min-width:0">${v ?? '—'}</span>`;
 
   let quien = '';
   if (f.limpieza) quien = `<div class="o-quien">Marcó: <b>${esc(quienRol(f.limpieza_por))}</b> · ${oHora(f.limpieza_en)}${f.limpieza_nota ? ` · “${esc(f.limpieza_nota)}”` : ''}</div>`;
-  if (oIngresoPend(f)) quien += `<div class="o-quien o-rojo">⚠️ Entra hoy a las ${O_INGRESO}: debe quedar Lista</div>`;
   else { const u = O.ultima.get(p.id); if (u) quien = `<div class="o-quien ant">Última marca: ${O_LIMP[u.limpieza]} · ${esc(oFechaTxt(u.fecha, true))} (${esc(nombre(u.limpieza_por))})</div>`; }
+  if (oIngresoPend(f)) quien += `<div class="o-quien o-rojo">⚠️ Entra hoy a las ${O_INGRESO}: debe quedar Lista</div>`;
   const limp = lim
     ? Object.keys(O_LIMP).map(k => `<button type="button" class="o-lb l-${k} ${f.limpieza === k ? 'on' : ''}" data-limp="${k}"><span class="o-ic">${O_LIMP_IC[k]}</span> <span>${O_LIMP[k]}</span></button>`).join('')
       + `<button type="button" class="o-lb o-nb" data-lnota title="Agregar nota o quitar la marca" aria-label="Nota de limpieza">📝</button>`
@@ -3039,12 +3079,13 @@ function oFilaHTML(p){
 
   return `<div class="o-row ${oIngresoPend(f) ? 'o-pend' : ''}" data-pid="${p.id}">
     <div class="o-nom"><div style="min-width:0"><span>${esc(p.nombre)}</span>
+      <div class="o-tarea t-${tarea.c}">${tarea.ic} ${esc(tarea.txt)}</div>
       ${f.nota ? `<div class="o-nota">📝 ${esc(f.nota)}</div>` : ''}</div>
       ${ed ? `<button type="button" class="o-ren" data-onota title="Nota de recepción" aria-label="Nota de recepción">📝</button>` : ''}
       ${tengo('propiedades_editar') ? `<button type="button" class="o-ren" data-oren title="Cambiar nombre u orden" aria-label="Editar propiedad">✏️</button>` : ''}
     </div>
-    <div><span class="o-lbl">Estado</span>${ed ? sel('estado', O_EST, f.estado) : chip(f.estado)}</div>
-    <div><span class="o-lbl">Entrada</span>${ed ? sel('entrada', O_ENT, f.entrada) : chip(f.entrada)}</div>
+    <div><span class="o-lbl">Amanece</span>${ed ? sel('estado', O_AMANECE, Object.keys(O_AMANECE), f.estado) : chip(O_AMANECE, f.estado)}</div>
+    <div><span class="o-lbl">Queda</span>${ed ? sel('entrada', O_QUEDA, opcQueda, f.entrada) : chip(O_QUEDA, f.entrada)}</div>
     <div><span class="o-lbl">Noches</span>${num('noches', f.noches, 365)}</div>
     <div><span class="o-lbl">Pax</span>${num('pax', f.pax, 99)}</div>
     <div class="o-limp">${limp}${quien}</div>
@@ -3121,12 +3162,12 @@ function oFormNota(pid){
 /* ---------- Copiar del día anterior ---------- */
 async function oCopiar(){
   const desde = oSumar(O.fecha, -1);
-  const msg = `¿Copiar el tablero del ${oFechaTxt(desde)} al ${oFechaTxt(O.fecha)}?\n\nSe copian Estado, Entrada, Noches, Pax y notas.`
+  const msg = `¿Armar el ${oFechaTxt(O.fecha)} desde el ${oFechaTxt(desde)}?\n\nLo que ese día "Queda" pasa a "Amanece":\n· Entra u Ocupada → amanece Ocupada (sigue ocupada, con sus noches y pax)\n· Libre → amanece Libre\n· Bloqueada → amanece Libre y sigue Bloqueada\n\nDespués solo cambie las que salen (Sale) y las que entran (Entra).`
     + (O.filas.size ? '\nLo que ya está lleno en este día se reemplaza.' : '') + '\nEl estado de limpieza no cambia.';
   if (!confirm(msg)) return;
   const { data, error } = await sb.rpc('ocupacion_copiar', { p_desde:desde, p_hasta:O.fecha });
   if (error) return aviso(errMsg(error), true);
-  aviso(data ? `Se copiaron ${data} propiedades` : 'El día anterior no tenía datos para copiar', !data);
+  aviso(data ? `Día armado: ${data} propiedades` : 'El día anterior no tenía datos', !data);
   cargarOcupacion(true);
 }
 
@@ -3151,10 +3192,11 @@ function oExcel(){
   const c = oCuenta();
   const filas = [[oTitulo().toUpperCase()], [oFechaTxt(O.fecha)],
     [`Creado por: ${O.dia?.creado_por ? quienRol(O.dia.creado_por) + ' · ' + fecha(O.dia.creado_en) : '—'}${O.dia?.archivado_en ? '   ·   Archivado: ' + fecha(O.dia.archivado_en) : ''}`], [],
-    ['PROPIEDAD', 'GRUPO', 'ESTADO', 'ENTRADA', 'Noches', 'Pax', 'Nota recepción', 'LIMPIEZA', 'Marcada por', 'Hora', 'Nota limpieza']];
+    ['PROPIEDAD', 'GRUPO', 'AMANECE', 'QUEDA', 'Noches', 'Pax', 'TAREA', 'Nota recepción', 'LIMPIEZA', 'Marcada por', 'Hora', 'Nota limpieza']];
   oProps().forEach(p => {
     const f = oFila(p.id);
-    filas.push([p.nombre, p.grupo || '', f.estado, f.entrada, f.noches ?? '', f.pax ?? '', f.nota || '',
+    filas.push([p.nombre, p.grupo || '', f.estado ? O_AMANECE[f.estado].toUpperCase() : '—', f.entrada ? O_QUEDA[f.entrada].toUpperCase() : '—',
+      f.noches ?? '', f.pax ?? '', oTarea(f).txt, f.nota || '',
       f.limpieza ? O_LIMP[f.limpieza].toUpperCase() : 'SIN MARCAR', f.limpieza ? quienRol(f.limpieza_por) : '',
       f.limpieza_en ? oHora(f.limpieza_en) : '', f.limpieza_nota || '']);
   });
@@ -3162,7 +3204,7 @@ function oExcel(){
     ['BLOQUEADAS', c.bloq], ['PAX', c.pax], [], ['LIMPIEZA'], ['LISTAS', c.lista], ['SUCIAS', c.sucia],
     ['PENDIENTES', c.pendiente], ['BLOQUEADAS', c.bloqueada], ['SIN MARCAR', c.sin]);
   const ws = XLSX.utils.aoa_to_sheet(filas);
-  ws['!cols'] = [{ wch:18 }, { wch:14 }, { wch:11 }, { wch:11 }, { wch:7 }, { wch:5 }, { wch:28 }, { wch:12 }, { wch:26 }, { wch:9 }, { wch:28 }];
+  ws['!cols'] = [{ wch:18 }, { wch:14 }, { wch:11 }, { wch:16 }, { wch:7 }, { wch:5 }, { wch:44 }, { wch:28 }, { wch:12 }, { wch:26 }, { wch:9 }, { wch:28 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Reporte de Limpieza');
   XLSX.writeFile(wb, `Reporte_Limpieza_${oFechaCorta(O.fecha).replaceAll('/', '-')}.xlsx`);
@@ -3183,12 +3225,23 @@ $('#o-excel').onclick = oExcel;
 const oClickStats = e => { const b = e.target.closest('[data-of]'); if (!b) return; O.filtro = O.filtro === b.dataset.of ? 'todas' : b.dataset.of; pintarOcupacion(); };
 $('#o-stats').addEventListener('click', oClickStats);
 $('#o-stats-l').addEventListener('click', oClickStats);
-$('#o-lista').addEventListener('change', e => {
+$('#o-lista').addEventListener('change', async e => {
   const el = e.target.closest('[data-c]'), row = e.target.closest('.o-row[data-pid]');
   if (!el || !row) return;
-  if (el.tagName === 'SELECT') el.className = 'o-sel o-v-' + el.value;
-  oGuardarFila(+row.dataset.pid, { [el.dataset.c]:el.value });
+  const pid = +row.dataset.pid, cambio = { [el.dataset.c]:el.value };
+  if (el.tagName === 'SELECT') {
+    el.className = 'o-sel o-v-' + el.value;
+    cambio[el.dataset.c] = el.value || null;
+    // Ocupada amanece → queda Ocupada (sigue); si deja de amanecer Ocupada, "Queda" se limpia
+    if (el.dataset.c === 'estado') {
+      const actual = oFila(pid).entrada;
+      if (el.value === 'OCUPADA') cambio.entrada = 'OCUPADA';
+      else if (actual === 'OCUPADA') cambio.entrada = null;
+    }
+  }
+  if (await oGuardarFila(pid, cambio) && el.tagName === 'SELECT') oRepintarFila(pid);
 });
+$('#o-orden').onchange = e => { O.orden = e.target.value; pintarOcupacion(); };
 $('#o-lista').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.o-num')) e.target.blur(); });
 $('#o-lista').addEventListener('focusout', () => setTimeout(() => {
   if (O.pend && !$('#o-lista').contains(document.activeElement)) pintarOcupacion();
