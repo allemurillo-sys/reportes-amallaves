@@ -258,27 +258,34 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 
 /* ---------- Claves de caja (Self check-in) ---------- */
 .view-title h2 small{font-size:13px;font-weight:600;color:var(--muted);margin-left:6px;letter-spacing:.02em}
-.k-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;align-items:start}
-.k-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;border-top:4px solid var(--accent)}
-.k-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px}
-.k-head h3{font-size:17px}
-.k-head .k-hacc{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.k-caja{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid var(--line);border-radius:10px;transition:background .6s}
-.k-head + .k-caja{border-top:0}
+.k-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;align-items:start}
+.k-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 12px 4px;border-top:3px solid var(--accent)}
+.k-head{display:flex;align-items:center;justify-content:space-between;gap:8px;position:relative}
+.k-head h3{font-size:15px;line-height:1.2}
+.k-head .k-hacc{display:flex;gap:4px;flex:none}
+.k-ico{display:inline-grid;place-items:center;min-width:32px;height:32px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink,#1d1d1d);font-size:14px;font-weight:600;cursor:pointer;line-height:1}
+.k-ico:hover{background:#f6f4f0}
+.k-caja{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);border-radius:8px;transition:background .6s;position:relative}
+.k-head + .k-caja{border-top:0;padding-top:6px}
 .k-caja.k-flash{background:#fdf6ec;box-shadow:0 0 0 6px #fdf6ec}
-.k-foto{flex:none;width:112px;height:84px;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:#efece6;display:grid;place-items:center;border:0;padding:0;cursor:pointer;color:var(--muted);font-size:12px;font-weight:600;text-align:center}
+.k-foto{flex:none;width:58px;height:58px;border-radius:8px;overflow:hidden;background:#efece6;display:grid;place-items:center;border:0;padding:0;cursor:pointer;color:var(--muted);font-size:10px;font-weight:600;text-align:center;line-height:1.1}
 .k-foto img{width:100%;height:100%;object-fit:cover;display:block}
-.k-foto span{display:block;font-size:22px}
+.k-foto span{display:block;font-size:18px}
 .k-foto.vacia{border:2px dashed var(--line);background:#fff;cursor:default}
 .k-foto.vacia.edit{cursor:pointer}
 .k-info{flex:1;min-width:0}
-.k-nombre{font-weight:700}
-.k-ubic{font-size:13px;color:var(--muted)}
-.k-clave{display:flex;align-items:center;gap:10px;margin:6px 0 2px}
-.k-dig{font:700 28px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.28em;color:var(--brand);background:#eef3f3;border-radius:10px;padding:8px 6px 8px 12px;min-width:118px;text-align:center}
-.k-dig.oculta{color:var(--muted);letter-spacing:.2em}
-.k-meta{font-size:12px;color:var(--muted)}
-.k-acc{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.k-linea{display:flex;align-items:baseline;gap:6px;min-width:0;white-space:nowrap;overflow:hidden}
+.k-nombre{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.k-ubic{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.k-clave{display:flex;align-items:center;gap:6px;margin:4px 0 2px}
+.k-dig{font:700 20px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.22em;color:var(--brand);background:#eef3f3;border:0;border-radius:8px;padding:6px 4px 6px 9px;min-width:84px;height:32px;text-align:center;cursor:pointer}
+.k-dig.oculta{color:var(--muted);letter-spacing:.16em}
+.k-clave .btn.sm{height:32px;padding:0 10px}
+.k-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-menu{position:absolute;right:0;top:calc(100% - 2px);z-index:20;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:4px;min-width:170px;display:flex;flex-direction:column}
+.k-menu button{all:unset;cursor:pointer;padding:9px 12px;border-radius:7px;font-size:14px}
+.k-menu button:hover{background:#f3f1ec}
+.k-menu .peligro{color:#b23b2e}
 .k-vacio{color:var(--muted);text-align:center;padding:30px 10px}
 .k-arch{opacity:.75}
 .k-in{font:700 34px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.5em;text-align:center;padding:14px 0 14px .5em}
@@ -286,8 +293,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .k-hist li .txt b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.12em}
 @media (max-width:760px){
   .k-grid{grid-template-columns:1fr}
-  .k-foto{width:96px;height:72px}
-  .k-dig{font-size:26px;min-width:108px}
 }
 
 /* ---------- Ocupación (tablero del día) ---------- */
@@ -2578,14 +2583,17 @@ function pintarClaves(){
 
 function tarjetaClaves(g, arch){
   const adm = kAdmin(), inactiva = g.prop && !g.prop.activa;
+  const puedeAdd = adm && !arch && kActivas(g.pid) < K_MAX_CAJAS;
   return `<div class="k-card ${arch ? 'k-arch' : ''}">
     <div class="k-head">
-      <div><h3>${esc(g.nombre)}</h3>${inactiva ? '<span class="tag" style="margin-top:4px;display:inline-block">Propiedad inactiva</span>' : ''}</div>
+      <h3>${esc(g.nombre)}${inactiva ? ' <span class="tag">Inactiva</span>' : ''}</h3>
       <div class="k-hacc">
-        <button class="btn sec sm" data-khistp="${g.pid}" title="Historial de toda la propiedad" aria-label="Historial de la propiedad">🕑 Historial</button>
-        ${adm && !arch && kActivas(g.pid) < K_MAX_CAJAS ? `<button class="btn sec sm" data-kadd="${g.pid}">+ Caja</button>` : ''}
-        ${adm && !arch ? `<button class="btn sec sm" data-kquitar="${g.pid}" title="Quitar de la sección (se archivan sus cajas)">Quitar</button>` : ''}
+        <button class="k-ico" data-khistp="${g.pid}" title="Historial de toda la propiedad" aria-label="Historial de la propiedad">🕑</button>
+        ${puedeAdd ? `<button class="k-ico" data-kadd="${g.pid}" title="Agregar caja" aria-label="Agregar caja">＋</button>` : ''}
+        ${adm && !arch ? `<button class="k-ico" data-kmas="p${g.pid}" title="Más opciones" aria-label="Más opciones">⋯</button>` : ''}
       </div>
+      ${adm && !arch ? `<div class="k-menu hidden" id="km-p${g.pid}">
+        <button data-kquitar="${g.pid}" class="peligro">Quitar propiedad de la sección</button></div>` : ''}
     </div>
     ${g.cajas.map(c => cajaHTML(c, arch)).join('')}
   </div>`;
@@ -2595,26 +2603,24 @@ function cajaHTML(c, arch){
   const adm = kAdmin() && !arch, url = fotoUrl(c.foto), vis = K.visibles.has(c.id);
   const foto = url
     ? `<button class="k-foto" data-kfoto="${c.id}" aria-label="Ver foto de la ubicación"><img src="${esc(url)}" alt="Ubicación de ${esc(c.nombre)}" loading="lazy"></button>`
-    : `<button class="k-foto vacia ${adm ? 'edit' : ''}" ${adm ? `data-ksubir="${c.id}"` : 'disabled'} aria-label="${adm ? 'Agregar foto' : 'Sin foto'}"><div><span>📷</span>${adm ? 'Agregar foto' : 'Sin foto'}</div></button>`;
+    : `<button class="k-foto vacia ${adm ? 'edit' : ''}" ${adm ? `data-ksubir="${c.id}"` : 'disabled'} aria-label="${adm ? 'Agregar foto' : 'Sin foto'}"><div><span>📷</span>${adm ? 'Foto' : 'Sin foto'}</div></button>`;
   return `<div class="k-caja" id="kc-${c.id}">
     ${foto}
     <div class="k-info">
-      <div class="k-nombre">${esc(c.nombre)}</div>
-      ${c.ubicacion ? `<div class="k-ubic">${esc(c.ubicacion)}</div>` : ''}
+      <div class="k-linea"><span class="k-nombre">${esc(c.nombre)}</span>${c.ubicacion ? `<span class="k-ubic">· ${esc(c.ubicacion)}</span>` : ''}</div>
       <div class="k-clave">
-        <span class="k-dig ${vis ? '' : 'oculta'}" aria-live="polite">${vis ? esc(c.clave) : '••••'}</span>
-        <button class="btn sec sm" data-kmostrar="${c.id}">${vis ? 'Ocultar' : 'Mostrar'}</button>
-      </div>
-      <div class="k-meta">${arch ? 'Archivada · ' : ''}Clave cambiada por ${esc(nombre(c.clave_cambiada_por))} · ${hace(c.clave_cambiada_en)}</div>
-      <div class="k-acc">
+        <button class="k-dig ${vis ? '' : 'oculta'}" data-kmostrar="${c.id}" aria-live="polite" title="Tocar para ${vis ? 'ocultar' : 'mostrar'} la clave">${vis ? esc(c.clave) : '••••'}</button>
         ${arch ? (kAdmin() ? `<button class="btn sm" data-krest="${c.id}">↺ Restaurar</button>` : '')
-               : `<button class="btn sm" data-kcambiar="${c.id}">Cambiar clave</button>`}
-        <button class="btn sec sm" data-khist="${c.id}">Historial</button>
-        ${adm ? `<button class="btn sec sm" data-keditar="${c.id}">Editar</button>
-          <button class="btn sec sm" data-ksubir="${c.id}">📷 ${c.foto ? 'Cambiar foto' : 'Foto'}</button>
-          <button class="btn sec sm" data-karch="${c.id}">Archivar</button>` : ''}
+               : `<button class="btn sm" data-kcambiar="${c.id}">Cambiar</button>`}
+        <button class="k-ico" data-khist="${c.id}" title="Historial de esta caja" aria-label="Historial de esta caja">🕑</button>
+        ${adm ? `<button class="k-ico" data-kmas="c${c.id}" title="Más opciones" aria-label="Más opciones">⋯</button>` : ''}
       </div>
+      <div class="k-meta">${arch ? 'Archivada · ' : ''}${esc(nombre(c.clave_cambiada_por))} · ${hace(c.clave_cambiada_en)}</div>
     </div>
+    ${adm ? `<div class="k-menu hidden" id="km-c${c.id}">
+      <button data-keditar="${c.id}">✏️ Editar nombre / ubicación</button>
+      <button data-ksubir="${c.id}">📷 ${c.foto ? 'Cambiar foto' : 'Agregar foto'}</button>
+      <button data-karch="${c.id}" class="peligro">Archivar caja</button></div>` : ''}
   </div>`;
 }
 
@@ -2626,9 +2632,9 @@ function mostrarClave(id){
 }
 function pintarClaveVis(id){
   const el = $('#kc-' + id), c = kCaja(id); if (!el || !c) return;
-  const vis = K.visibles.has(id), d = el.querySelector('.k-dig'), b = el.querySelector('[data-kmostrar]');
+  const vis = K.visibles.has(id), d = el.querySelector('.k-dig');
   d.textContent = vis ? c.clave : '••••'; d.classList.toggle('oculta', !vis);
-  if (b) b.textContent = vis ? 'Ocultar' : 'Mostrar';
+  d.title = 'Tocar para ' + (vis ? 'ocultar' : 'mostrar') + ' la clave';
 }
 function ocultarClaves(){
   K.visibles.forEach(t => clearTimeout(t));
@@ -2654,6 +2660,8 @@ function destacarCaja(){
 }
 
 /* ---------- Eventos de la lista ---------- */
+function cerrarMenusClaves(){ document.querySelectorAll('#k-lista .k-menu').forEach(m => m.classList.add('hidden')); }
+document.addEventListener('click', e => { if (!e.target.closest('#k-lista .k-menu, #k-lista [data-kmas]')) cerrarMenusClaves(); });
 $('#k-q').addEventListener('input', pintarClaves);
 $('#k-ver').addEventListener('change', pintarClaves);
 $('#k-ref').addEventListener('click', async () => { await cargarClaves(); aviso('Actualizado'); });
@@ -2661,6 +2669,8 @@ $('#k-agregar').addEventListener('click', () => formCaja(null, null));
 $('#k-lista').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const d = b.dataset, id = k => +d[k];
+  if (d.kmas) { const m = $('#km-' + d.kmas), abierto = m && !m.classList.contains('hidden'); cerrarMenusClaves(); if (m && !abierto) m.classList.remove('hidden'); return; }
+  cerrarMenusClaves();
   if (d.kmostrar) mostrarClave(id('kmostrar'));
   else if (d.kcambiar) formCambiarClave(kCaja(id('kcambiar')));
   else if (d.khist) { const c = kCaja(id('khist')); historialClaves({ caja:c.id }, c.nombre, nombreProp(c.propiedad_id)); }
