@@ -2945,7 +2945,9 @@ const oProps = () => S.propiedades.filter(p => p.activa && p.en_ocupacion !== fa
 const oFila = pid => O.filas.get(pid) || { estado:null, entrada:null, noches:null, pax:null, nota:null, limpieza:null };
 const O_INICIO_LIMPIEZA = '08:00';   // el estado de limpieza se marca solo el día del reporte, de 8:00 a. m. al cierre
 const oHorarioLimpieza = () => O.fecha === oHoy() && oHoraCR() >= O_INICIO_LIMPIEZA && !oCerrado();
-const oPuedeLimpiar = () => tengo('ocupacion_limpieza') && oHorarioLimpieza();
+// Propiedades del reporte a las que Operaciones aún no les pone "Amanece" y "Queda"
+const oIncompletas = () => oProps().filter(p => { const f = oFila(p.id); return !f.estado || !f.entrada; });
+const oPuedeLimpiar = () => tengo('ocupacion_limpieza') && oHorarioLimpieza() && !oIncompletas().length;
 
 async function cargarOcupacion(silencioso){
   if (!S.perfil || !puedeOcup()) return;
@@ -3029,6 +3031,7 @@ function pintarOcupacion(){
   $('#o-copiar').classList.toggle('hidden', !oEditar());
   $('#o-terminar').classList.toggle('hidden', !oEditar());
   $('#o-terminar').textContent = O.dia?.terminado_en ? '📣 Avisar actualización' : '✅ Reporte terminado';
+  $('#o-terminar').title = oIncompletas().length ? 'Complete "Amanece" y "Queda" en todas las propiedades para terminar el reporte' : '';
   const dia = O.dia;
   $('#o-bita').innerHTML = `<span>🗂️ ${dia?.creado_por ? `Creado por <b>${esc(quienRol(dia.creado_por))}</b> · ${esc(fecha(dia.creado_en))}` : 'Operaciones aún no ha creado este tablero'}</span>`
     + (dia?.terminado_en ? `<span class="o-term">📋 Terminado por <b>${esc(quienRol(dia.terminado_por))}</b> · ${esc(fecha(dia.terminado_en))}${dia.avisos_terminado > 1 ? ' (actualizado)' : ''}</span>`
@@ -3043,6 +3046,12 @@ function pintarOcupacion(){
   if (pend.length) avisos.push(`<div class="o-aviso rojo">⚠️ <b>${pend.length} ${pend.length === 1 ? 'propiedad entra' : 'propiedades entran'} hoy (${O_INGRESO})</b> y aún no ${pend.length === 1 ? 'está lista' : 'están listas'}: `
     + pend.map(p => `${esc(p.nombre)} (${oFila(p.id).limpieza ? O_LIMP[oFila(p.id).limpieza] : 'sin marcar'})`).join(', ')
     + `.<br><span style="font-weight:500">Alertas a todo el personal a las 2:00, 2:30 y 3:00 p. m. mientras no estén listas.</span></div>`);
+  const incomp = oIncompletas();
+  if (incomp.length && !oCerrado() && (tengo('ocupacion_limpieza') || oEditar()))
+    avisos.push(`<div class="o-aviso">📝 <b>${incomp.length} ${incomp.length === 1 ? 'propiedad no tiene' : 'propiedades no tienen'} "Amanece" y "Queda" completos.</b> `
+      + (oEditar() ? 'Complételas para poder terminar el reporte; mientras tanto ama de llaves no puede marcar la limpieza.'
+                   : 'La limpieza se podrá marcar cuando Operaciones complete el reporte.')
+      + `<br><span style="font-weight:500">${incomp.slice(0, 12).map(p => esc(p.nombre)).join(', ')}${incomp.length > 12 ? '…' : ''}</span></div>`);
   if (tengo('ocupacion_limpieza') && !oCerrado() && !oHorarioLimpieza())
     avisos.push(f === hoy ? '🕗 El estado de limpieza se puede marcar desde las <b>8:00 a. m.</b> hasta las 8:15 p. m.'
                           : 'El estado de limpieza solo se marca el día del reporte, de 8:00 a. m. a 8:15 p. m.');
@@ -3186,7 +3195,9 @@ async function oCopiar(){
 
 /* ---------- Reporte terminado: avisa a ama de llaves y mucamas ---------- */
 async function oTerminar(){
-  const sinAmanece = oProps().filter(p => !oFila(p.id).estado);
+  const incomp = oIncompletas();
+  if (incomp.length) return aviso(`Falta completar "Amanece" y "Queda" en ${incomp.length} propiedad(es): ${incomp.slice(0, 5).map(p => p.nombre).join(', ')}${incomp.length > 5 ? '…' : ''}`, true);
+  const sinAmanece = [];
   const act = !!O.dia?.terminado_en;
   let msg = act ? `¿Avisar a ama de llaves y mucamas que el ${oTitulo()} tiene cambios?`
                 : `¿Marcar el ${oTitulo()} como terminado?\n\nSe avisará a ama de llaves, supervisoras y mucamas que ya pueden revisarlo.`;
@@ -3269,7 +3280,12 @@ $('#o-lista').addEventListener('change', async e => {
       else if (actual === 'OCUPADA') cambio.entrada = null;
     }
   }
-  if (await oGuardarFila(pid, cambio) && el.tagName === 'SELECT') oRepintarFila(pid);
+  const antes = oIncompletas().length;
+  if (await oGuardarFila(pid, cambio) && el.tagName === 'SELECT') {
+    oRepintarFila(pid);
+    // Cambió si el reporte está completo: los avisos y botones se actualizan al salir de la lista
+    if ((antes === 0) !== (oIncompletas().length === 0)) O.pend = true;
+  }
 });
 $('#o-orden').onchange = e => { O.orden = e.target.value; pintarOcupacion(); };
 $('#o-lista').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.o-num')) e.target.blur(); });
