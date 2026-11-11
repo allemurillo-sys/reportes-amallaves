@@ -1053,7 +1053,8 @@ function conectarTiempoReal(){
       .subscribe();
     // A las 8:15 p. m. el tablero abierto pasa solo a "solo lectura"; a medianoche cambia el aviso de ingresos
     S.intervalos.push(setInterval(() => {
-      if (S.vista === 'ocupacion' && O.cerradoPintado !== null && oCerrado() !== O.cerradoPintado && !$('#o-lista').contains(document.activeElement)) pintarOcupacion();
+      // A las 8:00 a. m. se habilitan las marcas de limpieza; a las 8:15 p. m. todo pasa a solo lectura
+      if (S.vista === 'ocupacion' && O.cerradoPintado !== null && (oCerrado() + '|' + oHorarioLimpieza()) !== O.cerradoPintado && !$('#o-lista').contains(document.activeElement)) pintarOcupacion();
     }, 30000));
   }
 }
@@ -2942,7 +2943,9 @@ const oHora = iso => new Date(iso).toLocaleTimeString('es-CR', { timeZone:TZ, ho
 const oProps = () => S.propiedades.filter(p => p.activa && p.en_ocupacion !== false)
   .sort((a, b) => (a.orden ?? 1e6) - (b.orden ?? 1e6) || a.nombre.localeCompare(b.nombre, 'es'));
 const oFila = pid => O.filas.get(pid) || { estado:null, entrada:null, noches:null, pax:null, nota:null, limpieza:null };
-const oPuedeLimpiar = () => tengo('ocupacion_limpieza') && !oCerrado() && (O.fecha === oHoy() || S.perfil?.rol === 'admin');
+const O_INICIO_LIMPIEZA = '08:00';   // el estado de limpieza se marca solo el día del reporte, de 8:00 a. m. al cierre
+const oHorarioLimpieza = () => O.fecha === oHoy() && oHoraCR() >= O_INICIO_LIMPIEZA && !oCerrado();
+const oPuedeLimpiar = () => tengo('ocupacion_limpieza') && oHorarioLimpieza();
 
 async function cargarOcupacion(silencioso){
   if (!S.perfil || !puedeOcup()) return;
@@ -3022,7 +3025,7 @@ function pintarOcupacion(){
   const rel = f === hoy ? 'Hoy' : f === oSumar(hoy, 1) ? 'Mañana' : f === oSumar(hoy, -1) ? 'Ayer' : '';
   $('#o-titulo').textContent = oTitulo();
   $('#o-dia').innerHTML = (rel ? `<b>${rel}</b> · ` : '') + esc(oFechaTxt(f));
-  O.cerradoPintado = oCerrado();
+  O.cerradoPintado = oCerrado() + '|' + oHorarioLimpieza();
   $('#o-copiar').classList.toggle('hidden', !oEditar());
   $('#o-terminar').classList.toggle('hidden', !oEditar());
   $('#o-terminar').textContent = O.dia?.terminado_en ? '📣 Avisar actualización' : '✅ Reporte terminado';
@@ -3040,7 +3043,9 @@ function pintarOcupacion(){
   if (pend.length) avisos.push(`<div class="o-aviso rojo">⚠️ <b>${pend.length} ${pend.length === 1 ? 'propiedad entra' : 'propiedades entran'} hoy (${O_INGRESO})</b> y aún no ${pend.length === 1 ? 'está lista' : 'están listas'}: `
     + pend.map(p => `${esc(p.nombre)} (${oFila(p.id).limpieza ? O_LIMP[oFila(p.id).limpieza] : 'sin marcar'})`).join(', ')
     + `.<br><span style="font-weight:500">Alertas a todo el personal a las 2:00, 2:30 y 3:00 p. m. mientras no estén listas.</span></div>`);
-  if (tengo('ocupacion_limpieza') && f !== hoy && S.perfil.rol !== 'admin' && !oCerrado()) avisos.push('El estado de limpieza solo se marca en el tablero de hoy.');
+  if (tengo('ocupacion_limpieza') && !oCerrado() && !oHorarioLimpieza())
+    avisos.push(f === hoy ? '🕗 El estado de limpieza se puede marcar desde las <b>8:00 a. m.</b> hasta las 8:15 p. m.'
+                          : 'El estado de limpieza solo se marca el día del reporte, de 8:00 a. m. a 8:15 p. m.');
   if (tengo('ocupacion_editar') && O.fecha > oMaxFecha()) avisos.push(`El tablero solo se puede crear con hasta ${O_ANTELACION} días de antelación (hasta el ${esc(oFechaTxt(oMaxFecha(), true))}).`);
   if (oEditar() && !O.filas.size) avisos.push('Este día aún no tiene datos. Puede llenarlo aquí o tocar <b>⧉ Armar desde el día anterior</b>.');
   $('#o-aviso').innerHTML = avisos.map(a => a.startsWith('<div') ? a : `<div class="o-aviso">${a}</div>`).join('');
