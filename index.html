@@ -565,7 +565,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     <!-- OCUPACIÓN (tablero del día: antes el Excel "Reporte_Limpieza") -->
     <section id="v-ocupacion" class="view hidden">
       <div class="view-title">
-        <h2>Ocupación<small>Tablero del día</small></h2>
+        <h2 id="o-titulo">Reporte de Limpieza</h2>
         <div class="o-nav">
           <button class="btn sec sm" id="o-ant" title="Día anterior" aria-label="Día anterior">◀</button>
           <input class="inp" type="date" id="o-fecha" aria-label="Fecha del tablero">
@@ -2902,6 +2902,9 @@ const oSumar = (iso, d) => { const t = new Date(iso + 'T12:00:00Z'); t.setUTCDat
 const oFechaTxt = (iso, corto) => new Date(iso + 'T12:00:00Z').toLocaleDateString('es-CR', corto
   ? { timeZone:'UTC', weekday:'short', day:'numeric', month:'short' }
   : { timeZone:'UTC', weekday:'long', day:'numeric', month:'long', year:'numeric' });
+// Fecha corta del título: "Reporte de Limpieza 10/11/26" (día/mes/año)
+const oFechaCorta = iso => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a.slice(2)}`; };
+const oTitulo = () => 'Reporte de Limpieza ' + oFechaCorta(O.fecha);
 const oHora = iso => new Date(iso).toLocaleTimeString('es-CR', { timeZone:TZ, hour:'numeric', minute:'2-digit' });
 const oProps = () => S.propiedades.filter(p => p.activa && p.en_ocupacion !== false)
   .sort((a, b) => (a.orden ?? 1e6) - (b.orden ?? 1e6) || a.nombre.localeCompare(b.nombre, 'es'));
@@ -2913,6 +2916,7 @@ async function cargarOcupacion(silencioso){
   if (!O.fecha) O.fecha = oHoy();
   const f = O.fecha;
   $('#o-fecha').value = f;
+  $('#o-titulo').textContent = oTitulo();
   $('#o-fecha').max = oMaxFecha();
   $('#o-sig').disabled = f >= oMaxFecha();
   if (!silencioso) {
@@ -2980,6 +2984,7 @@ function pintarOcupacion(){
   O.pend = false;
   const hoy = oHoy(), f = O.fecha;
   const rel = f === hoy ? 'Hoy' : f === oSumar(hoy, 1) ? 'Mañana' : f === oSumar(hoy, -1) ? 'Ayer' : '';
+  $('#o-titulo').textContent = oTitulo();
   $('#o-dia').innerHTML = (rel ? `<b>${rel}</b> · ` : '') + esc(oFechaTxt(f));
   O.cerradoPintado = oCerrado();
   $('#o-copiar').classList.toggle('hidden', !oEditar());
@@ -3127,7 +3132,7 @@ async function oCopiar(){
 
 /* ---------- Historial del día ---------- */
 async function oHistorial(){
-  if (!abrirModal(`<div class="m-head"><div><h3>Bitácora del tablero</h3><div style="color:var(--muted);font-size:13px">${esc(oFechaTxt(O.fecha))}</div></div>
+  if (!abrirModal(`<div class="m-head"><div><h3>Bitácora · ${esc(oTitulo())}</h3><div style="color:var(--muted);font-size:13px">${esc(oFechaTxt(O.fecha))}</div></div>
       <button class="x" data-x aria-label="Cerrar">✕</button></div>
     <div class="m-body" id="oh"><div class="loading">Cargando…</div></div>`)) return;
   const { data, error } = await sb.from('ocupacion_historial').select('*').eq('fecha', O.fecha).order('creado_en', { ascending:false }).limit(300);
@@ -3144,7 +3149,7 @@ async function oHistorial(){
 /* ---------- Excel del día (mismo formato del reporte anterior) ---------- */
 function oExcel(){
   const c = oCuenta();
-  const filas = [[`REPORTE DE OCUPACIÓN · ${oFechaTxt(O.fecha).toUpperCase()}`],
+  const filas = [[oTitulo().toUpperCase()], [oFechaTxt(O.fecha)],
     [`Creado por: ${O.dia?.creado_por ? quienRol(O.dia.creado_por) + ' · ' + fecha(O.dia.creado_en) : '—'}${O.dia?.archivado_en ? '   ·   Archivado: ' + fecha(O.dia.archivado_en) : ''}`], [],
     ['PROPIEDAD', 'GRUPO', 'ESTADO', 'ENTRADA', 'Noches', 'Pax', 'Nota recepción', 'LIMPIEZA', 'Marcada por', 'Hora', 'Nota limpieza']];
   oProps().forEach(p => {
@@ -3159,8 +3164,8 @@ function oExcel(){
   const ws = XLSX.utils.aoa_to_sheet(filas);
   ws['!cols'] = [{ wch:18 }, { wch:14 }, { wch:11 }, { wch:11 }, { wch:7 }, { wch:5 }, { wch:28 }, { wch:12 }, { wch:26 }, { wch:9 }, { wch:28 }];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Ocupación');
-  XLSX.writeFile(wb, `Ocupacion_${O.fecha}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, 'Reporte de Limpieza');
+  XLSX.writeFile(wb, `Reporte_Limpieza_${oFechaCorta(O.fecha).replaceAll('/', '-')}.xlsx`);
 }
 
 /* ---------- Eventos ---------- */
