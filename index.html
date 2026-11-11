@@ -922,7 +922,7 @@ function menuItems(){
   if (tengo('crear_reportes')) items.push(['nuevo','➕','Nuevo reporte']);
   if (!tengo('panel')) items.push(['mis','📋','Estado de casos']);
   if (tengo('buscar_casos')) items.push(['historial','🔎','Buscar casos']);
-  if (puedeOcup()) items.push(['ocupacion','🛏️','Ocupación']);
+  if (puedeOcup()) items.push(['ocupacion','🧹','Limpieza']);
   if (puedeClaves()) items.push(['claves','🔑','Claves de caja']);
   if (tabsMant().length) items.push(['mant','⚙️','Mantenimiento']);
   return items;
@@ -1209,7 +1209,7 @@ function toastOcupacion(n){
   const alerta = /Ingreso|ingreso \(/.test(n.numero_caso || '');
   const el = document.createElement('div');
   el.className = 'toast notif' + (alerta ? ' o-toast-alerta' : ''); el.dataset.tipo = 'notif';
-  el.innerHTML = `<div class="tt">${esc(n.numero_caso || 'Ocupación')}</div>
+  el.innerHTML = `<div class="tt">${esc(n.numero_caso || 'Limpieza')}</div>
     <div class="tb">${n.propiedad_nombre ? `<b>${esc(n.propiedad_nombre)}</b><br>` : ''}<span style="font-size:13px">${esc(n.mensaje)}</span></div>
     <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ver tablero</button></div>`;
   el.querySelector('[data-cerrar]').onclick = () => el.remove();
@@ -1234,7 +1234,7 @@ async function abrirNotif(n){
 }
 function verNotifs(){
   const items = S.notifs.map(n => `<button class="notif-item ${n.leida ? '' : 'nueva'}" data-notif="${n.id}">
-      <div class="nc">${n.leida ? '' : '● '}${n.tipo === 'clave' ? '🔑 Clave de caja' : n.tipo === 'ocupacion' ? '🛏️ ' + esc(n.numero_caso || 'Ocupación') : esc(n.numero_caso)}${n.propiedad_nombre ? ' · ' + esc(n.propiedad_nombre) : ''}</div>
+      <div class="nc">${n.leida ? '' : '● '}${n.tipo === 'clave' ? '🔑 Clave de caja' : n.tipo === 'ocupacion' ? '🧹 ' + esc(n.numero_caso || 'Limpieza') : esc(n.numero_caso)}${n.propiedad_nombre ? ' · ' + esc(n.propiedad_nombre) : ''}</div>
       <div class="nm">${esc(n.mensaje)}</div>
       <div class="nf">${fecha(n.creado_en)}</div></button>`).join('');
   const ok = abrirModal(`<div class="m-head"><div><h3>Notificaciones</h3>
@@ -1898,7 +1898,7 @@ async function mPropiedades(){
       <input class="inp" id="fp-desc" placeholder="Descripción o ubicación (opcional)">
       <button class="btn" type="submit">+ Agregar</button>
     </form>
-    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Orden</th><th>Propiedad</th><th>Descripción</th><th>Estado</th><th>Ocupación</th><th></th></tr></thead><tbody>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Orden</th><th>Propiedad</th><th>Descripción</th><th>Estado</th><th>Limpieza</th><th></th></tr></thead><tbody>
     ${S.propiedades.length ? [...S.propiedades].sort((a, b) => (a.orden ?? 1e6) - (b.orden ?? 1e6) || a.nombre.localeCompare(b.nombre, 'es')).map(p => `<tr>
       <td style="color:var(--muted)">${p.orden ?? '—'}</td>
       <td><b>${esc(p.nombre)}</b>${p.grupo ? `<br><small style="color:var(--muted)">${esc(p.grupo)}</small>` : ''}</td><td>${esc(p.descripcion || '')}</td>
@@ -1911,7 +1911,7 @@ async function mPropiedades(){
       </td></tr>`).join('') : '<tr><td colspan="6" class="loading">Aún no hay propiedades</td></tr>'}
     </tbody></table></div>
     <p style="font-size:13px;color:var(--muted)">Una propiedad <b>inactiva</b> deja de aparecer en la lista de nuevos reportes pero conserva su historial. Al eliminarla, los reportes anteriores mantienen el nombre.
-    En <b>Editar</b> puede cambiar el nombre, el <b>orden</b> y el <b>grupo</b> con que aparece en el tablero de Ocupación (ej. 10, 20, 30…), y si aparece o no en ese tablero.</p>`;
+    En <b>Editar</b> puede cambiar el nombre, el <b>orden</b> y el <b>grupo</b> con que aparece en el Reporte de Limpieza (ej. 10, 20, 30…), y si aparece o no en ese tablero.</p>`;
 
   $('#fp').onsubmit = async e => {
     e.preventDefault();
@@ -1948,7 +1948,7 @@ function formPropiedad(p, despues){
           <div><label class="f">Grupo (opcional)</label><input class="inp" id="fpe-g" maxlength="40" value="${esc(p.grupo || '')}" placeholder="Ej. Apartamentos, Hormigas House"></div>
         </div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:14px;font-weight:600;cursor:pointer">
-          <input type="checkbox" id="fpe-t" ${p.en_ocupacion !== false ? 'checked' : ''}> Mostrar en el tablero de Ocupación</label>
+          <input type="checkbox" id="fpe-t" ${p.en_ocupacion !== false ? 'checked' : ''}> Mostrar en el Reporte de Limpieza</label>
         <p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">El nuevo nombre se usa desde ahora en todo el sistema. Los reportes anteriores conservan el nombre con que se crearon.</p>
         <div class="err" id="fpe-err"></div><button class="btn block" type="submit">Guardar</button>
       </form>`, true)) return;
