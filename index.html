@@ -248,6 +248,16 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .push-aviso .pa-tx p{margin:0;color:var(--muted);font-size:14px}
 .push-aviso .pa-ac{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .push-aviso.mal{border-left-color:var(--alta)}
+.rs-box{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:22px;background:#fbfaf7}
+.rs-box h3{margin:0 0 4px}
+.rs-num{display:flex;gap:18px;flex-wrap:wrap;margin:12px 0}
+.rs-num div{font-size:13px;color:var(--muted)}
+.rs-num b{display:block;font-size:22px;color:var(--ink)}
+.rs-prog{height:8px;background:#ece9e3;border-radius:99px;overflow:hidden;margin:10px 0 6px}
+.rs-prog i{display:block;height:100%;width:0;background:var(--brand);transition:width .2s}
+.rs-paso{font-size:13px;color:var(--muted)}
+.rs-hist{font-size:13px;color:var(--muted);margin-top:12px}
+.det-arch{background:#f3f1ec;border-radius:10px;padding:10px 12px;font-size:13px;color:var(--muted);margin-top:8px}
 .push-pasos{margin:8px 0 0;padding-left:20px;font-size:14px;color:var(--ink)}
 .push-pasos li{margin:3px 0}
 .push-box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:16px;background:#faf9f7}
@@ -421,6 +431,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   <main>
     <!-- Aviso para activar las notificaciones / instalar la app en este dispositivo -->
     <div id="push-aviso" class="push-aviso hidden" role="region" aria-label="Notificaciones"></div>
+    <!-- Respaldo pendiente de fotos (solo Administrador; no se puede ocultar hasta hacerlo) -->
+    <div id="resp-aviso" class="push-aviso hidden" role="region" aria-label="Respaldo pendiente"></div>
 
     <!-- PANEL -->
     <section id="v-panel" class="view hidden">
@@ -867,6 +879,8 @@ async function iniciarSesion(){
   if (S.casoPendiente) { const id = S.casoPendiente; S.casoPendiente = null; abrirCasoPush(id); }
   else if (S.clavesPendiente) { const k = S.clavesPendiente; S.clavesPendiente = null; abrirClavesPush(k.caja); }
   else if (S.ocupPendiente) { const f = S.ocupPendiente; S.ocupPendiente = false; abrirOcupPush(typeof f === 'string' ? f : null); }
+  else if (S.respPendiente) { S.respPendiente = false; irARespaldo(); }
+  revisarRespaldo();
 
   S.intervalos.push(setInterval(actualizarTimers, 30000));
   S.intervalos.push(setInterval(async () => {
@@ -906,7 +920,7 @@ function mostrarLogin(msg){
   K.cajas = []; K.fotos = {}; K.cargado = false; ocultarClaves();
   S.alertaId = null; S.toastsVistos.clear(); $('#toasts').innerHTML = '';
   S.notifs = []; S.activos = []; S.permisos = new Set(); S.permisosTxt = '';
-  P.oculto = false; $('#push-aviso').classList.add('hidden');
+  P.oculto = false; $('#push-aviso').classList.add('hidden'); $('#resp-aviso').classList.add('hidden');
   try { if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); } catch (e) {}
   $('#alerta').classList.add('hidden'); cerrarModal(true);
   $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
@@ -957,6 +971,7 @@ function irA(v){
   if (!menuVistas().includes(v)) v = vistaInicial();
   if (v !== 'claves') ocultarClaves();
   S.vista = v;
+  $('#resp-aviso').classList.toggle('hidden', v === 'mant' || !(window.R?.pend?.fotos > 0) || S.perfil?.rol !== 'admin');
   $$('.view').forEach(s => s.classList.add('hidden'));
   $('#v-' + v).classList.remove('hidden');
   $$('#menu button').forEach(b => b.classList.toggle('on', b.dataset.vista === v));
@@ -1213,6 +1228,7 @@ function nuevaNotif(n){
   const clave = n.tipo === 'clave';
   if (clave && S.vista === 'claves') cargarClaves(true);
   if (n.tipo === 'ocupacion') return toastOcupacion(n);
+  if (n.tipo === 'respaldo') return toastRespaldo(n);
   const el = document.createElement('div');
   el.className = 'toast notif'; el.dataset.tipo = 'notif';
   el.innerHTML = `<div class="tt">${clave ? '🔑 Clave de caja' : '📬 Novedad en un reporte'}</div>
@@ -1238,6 +1254,17 @@ function toastOcupacion(n){
   $('#toasts').prepend(el);
   beep(); if (alerta) setTimeout(beep, 900);
 }
+function toastRespaldo(n){
+  revisarRespaldo();
+  const el = document.createElement('div');
+  el.className = 'toast notif'; el.dataset.tipo = 'notif';
+  el.innerHTML = `<div class="tt">📦 Respaldo pendiente</div><div class="tb"><span style="font-size:13px">${esc(n.mensaje)}</span></div>
+    <div class="ta"><button class="btn sec sm" data-cerrar>Ocultar</button><button class="btn sm" data-ver>Ir al respaldo</button></div>`;
+  el.querySelector('[data-cerrar]').onclick = () => el.remove();
+  el.querySelector('[data-ver]').onclick = () => { el.remove(); abrirNotif(n); };
+  $('#toasts').prepend(el);
+  beep();
+}
 function irAOcupacionHoy(f){ O.fecha = /^\d{4}-\d{2}-\d{2}$/.test(f || '') ? f : oHoy(); O.filtro = 'todas'; cerrarModal(); irA('ocupacion'); }
 function abrirOcupPush(f){
   if (!S.perfil) { S.ocupPendiente = f || true; return; }
@@ -1251,11 +1278,12 @@ async function abrirNotif(n){
   if (!n.leida) { n.leida = true; pintarCampana(); sb.rpc('marcar_leidas', { p_ids:[n.id] }); }
   if (n.tipo === 'clave') { cerrarModal(); return irAClaves(n.caja_id); }
   if (n.tipo === 'ocupacion') return puedeOcup() ? irAOcupacionHoy(n.fecha_ref) : cerrarModal();
+  if (n.tipo === 'respaldo') { cerrarModal(); return irARespaldo(); }
   abrirDetalle(n.reporte_id);
 }
 function verNotifs(){
   const items = S.notifs.map(n => `<button class="notif-item ${n.leida ? '' : 'nueva'}" data-notif="${n.id}">
-      <div class="nc">${n.leida ? '' : '● '}${n.tipo === 'clave' ? '🔑 Clave de caja' : n.tipo === 'ocupacion' ? '🧹 ' + esc(n.numero_caso || 'Limpieza') : esc(n.numero_caso)}${n.propiedad_nombre ? ' · ' + esc(n.propiedad_nombre) : ''}</div>
+      <div class="nc">${n.leida ? '' : '● '}${n.tipo === 'clave' ? '🔑 Clave de caja' : n.tipo === 'ocupacion' ? '🧹 ' + esc(n.numero_caso || 'Limpieza') : n.tipo === 'respaldo' ? '📦 Respaldo pendiente' : esc(n.numero_caso)}${n.propiedad_nombre ? ' · ' + esc(n.propiedad_nombre) : ''}</div>
       <div class="nm">${esc(n.mensaje)}</div>
       <div class="nf">${fecha(n.creado_en)}</div></button>`).join('');
   const ok = abrirModal(`<div class="m-head"><div><h3>Notificaciones</h3>
@@ -1334,6 +1362,7 @@ async function abrirDetalle(id, forzado){
   S.detalle = r;
 
   let fotosHTML = '';
+  const archTxt = r.fotos_archivadas > 0 ? `<div class="det-arch">📦 ${r.fotos_archivadas} foto${r.fotos_archivadas === 1 ? '' : 's'} guardada${r.fotos_archivadas === 1 ? '' : 's'} en el respaldo del ${new Date(r.fotos_respaldo_en).toLocaleDateString('es-CR', { timeZone:TZ })} (ya no están en el sistema)</div>` : '';
   if (r.fotos && r.fotos.length) {
     const { data:urls } = await sb.storage.from(BUCKET).createSignedUrls(r.fotos, 3600);
     fotosHTML = `<div class="sec-t">Fotografías</div><div class="det-fotos">${(urls || []).filter(u => u.signedUrl)
@@ -1386,7 +1415,7 @@ async function abrirDetalle(id, forzado){
       </div>
       <div class="sec-t">Reporte</div>
       <div class="det-desc">${esc(r.descripcion)}</div>
-      ${fotosHTML}
+      ${fotosHTML}${archTxt ? (fotosHTML ? '' : '<div class="sec-t">Fotografías</div>') + archTxt : ''}
       ${aviso2}
       ${botones.length || reclasif ? `<div class="sec-t">Acciones</div>
         <div class="acciones">
@@ -1683,7 +1712,7 @@ function tabsMant(){
   const tabs = [];
   if (tengo('usuarios')) tabs.push(['usuarios','👥 Usuarios'], ['autorizaciones','🔐 Autorizaciones']);
   if (tengo('propiedades_editar') || tengo('propiedades_eliminar')) tabs.push(['propiedades','🏠 Propiedades']);
-  if (tengo('respaldo_excel')) tabs.push(['respaldo','💾 Respaldo Excel']);
+  if (tengo('respaldo_excel') || S.perfil?.rol === 'admin') tabs.push(['respaldo', S.perfil?.rol === 'admin' ? '💾 Respaldos' : '💾 Respaldo Excel']);
   if (S.perfil?.rol === 'admin') tabs.push(['telegram','📨 Telegram']);
   return tabs;
 }
@@ -1985,18 +2014,190 @@ function formPropiedad(p, despues){
   };
 }
 
-/* ---------- Respaldo Excel ---------- */
+/* ---------- Respaldo Excel + respaldo semestral de fotos ---------- */
 function mRespaldo(){
+  const admin = S.perfil?.rol === 'admin';
   $('#mant-body').innerHTML = `
-    <h3>Respaldo de reportes (Excel)</h3>
+    ${admin ? '<div class="rs-box" id="rs"><div class="loading">Revisando…</div></div>' : ''}
+    ${tengo('respaldo_excel') || admin ? `<h3>Respaldo de reportes (Excel)</h3>
     <p style="color:var(--muted);font-size:14px">Descarga un archivo Excel con los reportes y su bitácora completa. Deje las fechas vacías para descargar todo.</p>
     <form class="row-form" id="fr">
       <div style="flex:1;min-width:160px"><label class="f">Desde</label><input class="inp" type="date" id="fr-desde"></div>
       <div style="flex:1;min-width:160px"><label class="f">Hasta</label><input class="inp" type="date" id="fr-hasta"></div>
     </form>
     <button class="btn" id="fr-btn">⬇ Descargar Excel</button>
-    <div class="err" id="fr-err"></div>`;
-  $('#fr-btn').onclick = exportarExcel;
+    <div class="err" id="fr-err"></div>` : ''}`;
+  if ($('#fr-btn')) $('#fr-btn').onclick = exportarExcel;
+  if (admin) revisarRespaldo().then(pintarRespaldoBox);
+}
+
+/* Fotos de casos FINALIZADOS hace más de 6 meses: se descargan en un ZIP (fotos por propiedad
+   y caso + Excel) y, cuando el Administrador confirma que el archivo quedó guardado, se borran
+   de Supabase para liberar espacio. El texto de los reportes y su bitácora se queda en el sistema. */
+var R = { pend:null, zip:null, nombre:'', ids:[], paths:[], bytes:0, ocupado:false, ultimo:null };
+const mb = b => (Math.max(b, 0) / 1048576).toLocaleString('es-CR', { maximumFractionDigits:1, minimumFractionDigits:1 }) + ' MB';
+
+async function revisarRespaldo(){
+  if (S.perfil?.rol !== 'admin') { $('#resp-aviso').classList.add('hidden'); return; }
+  const [{ data, error }, { data:ult }] = await Promise.all([
+    sb.rpc('respaldo_pendiente', { p_meses:6 }),
+    sb.from('respaldos').select('*').order('creado_en', { ascending:false }).limit(1)
+  ]);
+  if (error) return;
+  R.pend = data || { fotos:0, casos:0, bytes:0, ids:[] };
+  R.ultimo = (ult || [])[0] || null;
+  const box = $('#resp-aviso');
+  if (R.pend.fotos > 0 && S.vista !== 'mant') {
+    box.innerHTML = `<div class="pa-ic">📦</div><div class="pa-tx"><b>Respaldo de fotos pendiente</b>
+      <p>${R.pend.fotos} fotos de ${R.pend.casos} casos finalizados hace más de 6 meses (${mb(R.pend.bytes)}). Descárguelas a la computadora para liberar espacio.</p>
+      <div class="pa-ac"><button class="btn sm" id="ra-ir">Ir al respaldo</button></div></div>`;
+    box.classList.remove('hidden');
+    $('#ra-ir').onclick = irARespaldo;
+  } else box.classList.add('hidden');
+}
+function irARespaldo(){
+  if (S.perfil?.rol !== 'admin') return;
+  if (S.alertaId || S.forzadoId) return;
+  S.mantTab = 'respaldo'; irA('mant');
+  $('#resp-aviso').classList.add('hidden');
+}
+
+function pintarRespaldoBox(){
+  const box = $('#rs'); if (!box) return;
+  const p = R.pend || { fotos:0 };
+  const ult = R.ultimo ? `<div class="rs-hist">Último respaldo: ${fecha(R.ultimo.creado_en)} · ${R.ultimo.fotos} fotos de ${R.ultimo.casos} casos${R.ultimo.bytes ? ' · ' + mb(R.ultimo.bytes) + ' liberados' : ''} · ${esc(nombre(R.ultimo.usuario_id))}</div>` : '';
+  if (R.zip) {
+    box.innerHTML = `<h3>📦 Paso 2 de 2: confirmar y liberar espacio</h3>
+      <p style="font-size:14px">Se descargó <b>${esc(R.nombre)}</b> (${mb(R.zip.size)}). Ábralo en la computadora y revise que tenga las fotos y el Excel.
+      Cuando confirme, las ${R.paths.length} fotos se borran del sistema y <b>solo quedarán en ese archivo</b>.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn" id="rs-liberar">✅ Sí, quedó guardado: liberar espacio</button>
+        <button class="btn sec" id="rs-otra">⬇ Descargar otra vez</button>
+        <button class="btn sec" id="rs-cancelar">Cancelar</button></div>
+      <div class="rs-paso" id="rs-paso" style="margin-top:8px"></div>`;
+    $('#rs-liberar').onclick = liberarEspacio;
+    $('#rs-otra').onclick = () => guardarBlob(R.zip, R.nombre);
+    $('#rs-cancelar').onclick = () => { R.zip = null; pintarRespaldoBox(); };
+    return;
+  }
+  if (!p.fotos) {
+    box.innerHTML = `<h3>📦 Respaldo de fotos (cada 6 meses)</h3>
+      <p style="color:var(--muted);font-size:14px;margin:0">✅ No hay fotos pendientes. Cuando haya fotos de casos finalizados hace más de 6 meses, el sistema le avisará para descargarlas y liberar espacio.</p>${ult}`;
+    return;
+  }
+  box.innerHTML = `<h3>📦 Respaldo de fotos pendiente</h3>
+    <p style="color:var(--muted);font-size:14px;margin:0">Fotos de casos <b>finalizados hace más de 6 meses</b>. Se descargan en un archivo ZIP (carpetas por propiedad y caso, más un Excel con los reportes) y luego se borran del sistema. El texto de los reportes y su historial se quedan en el sistema. Hágalo preferiblemente desde la computadora.</p>
+    <div class="rs-num"><div><b>${p.fotos}</b>fotos</div><div><b>${p.casos}</b>casos</div><div><b>${mb(p.bytes)}</b>a liberar</div></div>
+    <button class="btn" id="rs-desc">⬇ Descargar respaldo</button>
+    <div id="rs-av" class="hidden"><div class="rs-prog"><i id="rs-bar"></i></div><div class="rs-paso" id="rs-paso"></div></div>
+    <div class="err" id="rs-err"></div>${ult}`;
+  $('#rs-desc').onclick = descargarRespaldo;
+}
+
+function cargarScript(src){
+  return new Promise((ok, mal) => { const t = document.createElement('script'); t.src = src; t.onload = ok; t.onerror = () => mal(new Error('No se pudo cargar ' + src)); document.head.appendChild(t); });
+}
+function guardarBlob(blob, nom){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+const carpeta = t => String(t || 'Sin nombre').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 60) || 'Sin nombre';
+
+async function descargarRespaldo(){
+  if (R.ocupado) return; R.ocupado = true;
+  const btn = $('#rs-desc'), paso = t => { $('#rs-paso').textContent = t; }, barra = x => { $('#rs-bar').style.width = Math.round(x * 100) + '%'; };
+  btn.disabled = true; btn.textContent = 'Preparando…'; $('#rs-av').classList.remove('hidden'); $('#rs-err').textContent = '';
+  try {
+    paso('Preparando…'); barra(0);
+    if (!window.JSZip) await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    await cargarPerfiles();
+    const { data:pend, error:e0 } = await sb.rpc('respaldo_pendiente', { p_meses:6 }); if (e0) throw e0;
+    const ids = (pend?.ids || []).map(Number);
+    if (!ids.length) { aviso('No hay fotos pendientes'); R.pend = pend; return pintarRespaldoBox(); }
+    const reps = []; for (let i = 0; i < ids.length; i += 200)
+      reps.push(...await traerTodo(() => sb.from('reportes').select('*').in('id', ids.slice(i, i + 200)).order('creado_en')));
+    const bit = []; for (let i = 0; i < ids.length; i += 200)
+      bit.push(...await traerTodo(() => sb.from('bitacora').select('*').in('reporte_id', ids.slice(i, i + 200)).order('creado_en')));
+
+    const zip = new JSZip(), total = reps.reduce((n, r) => n + (r.fotos || []).length, 0);
+    const bajadas = [], fallas = [], carpetaDe = {}, cuantas = {};
+    let hechas = 0, bytes = 0;
+    for (const r of reps) {
+      const dir = `${carpeta(r.propiedad_nombre)}/${carpeta(r.numero_caso)}`;
+      carpetaDe[r.id] = dir; cuantas[r.id] = 0;
+      for (const [i, path] of (r.fotos || []).entries()) {
+        paso(`Descargando foto ${hechas + 1} de ${total}…`);
+        const { data:blob, error } = await sb.storage.from(BUCKET).download(path);
+        if (error || !blob) fallas.push(path);
+        else {
+          const ext = (path.split('.').pop() || 'jpg').toLowerCase().slice(0, 5);
+          zip.file(`${dir}/foto-${i + 1}.${ext}`, blob, { binary:true });
+          bajadas.push(path); bytes += blob.size; cuantas[r.id]++;
+        }
+        hechas++; barra(hechas / total * 0.85);
+      }
+    }
+    if (!bajadas.length) throw new Error('No se pudo descargar ninguna foto. Revise la conexión e intente de nuevo.');
+
+    paso('Armando el Excel…');
+    const f = iso => iso ? new Date(iso).toLocaleString('es-CR', { timeZone:TZ, hour12:false }) : '';
+    const casoDe = {}; reps.forEach(r => casoDe[r.id] = r.numero_caso);
+    const hojaRep = reps.map(r => ({
+      'Caso': r.numero_caso, 'Fecha y hora': f(r.creado_en), 'Propiedad': r.propiedad_nombre,
+      'Dirigido a': depTxt(r, true), 'Prioridad': PRI[r.prioridad], 'Estado': EST[r.estado],
+      'Reporte': r.descripcion, 'Reportado por': nombre(r.creado_por),
+      'Cerrado por': r.cerrado_por ? nombre(r.cerrado_por) : '', 'Cerrado el': f(r.cerrado_en),
+      'Fotos en este respaldo': cuantas[r.id], 'Carpeta de las fotos': carpetaDe[r.id]
+    }));
+    const hojaBit = bit.map(b => ({
+      'Caso': casoDe[b.reporte_id], 'Fecha y hora': f(b.creado_en), 'Usuario': nombre(b.usuario_id),
+      'Acción': b.accion, 'Estado anterior': EST[b.estado_anterior] || '', 'Estado nuevo': EST[b.estado_nuevo] || '',
+      'Comentario': b.comentario || '', 'Razón': b.razon || '', 'Posible solución': b.posible_solucion || ''
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.json_to_sheet(hojaRep); ws1['!cols'] = [12, 18, 22, 18, 10, 14, 60, 20, 20, 18, 10, 40].map(w => ({ wch:w }));
+    const ws2 = XLSX.utils.json_to_sheet(hojaBit.length ? hojaBit : [{ 'Caso':'Sin movimientos' }]); ws2['!cols'] = [12, 18, 20, 14, 18, 18, 50, 40, 40].map(w => ({ wch:w }));
+    XLSX.utils.book_append_sheet(wb, ws1, 'Reportes'); XLSX.utils.book_append_sheet(wb, ws2, 'Bitácora');
+    const hoy = new Date(ahora()).toLocaleDateString('en-CA', { timeZone:TZ });
+    zip.file(`Reportes_y_bitacora_${hoy}.xlsx`, XLSX.write(wb, { type:'array', bookType:'xlsx' }));
+    zip.file('LEAME.txt', `Respaldo de fotos · Reportes Ama de Llaves · Home Vacations CR\r\nFecha: ${hoy}\r\n` +
+      `Contiene ${bajadas.length} fotos de ${reps.length} casos finalizados hace más de 6 meses.\r\n` +
+      `Las fotos están en carpetas: Propiedad / Número de caso. El Excel indica la carpeta de cada caso.\r\n` +
+      `Guarde este archivo en un lugar seguro: estas fotos se borraron del sistema.\r\n`);
+
+    paso('Creando el archivo ZIP…');
+    const blob = await zip.generateAsync({ type:'blob', compression:'STORE' }, m => barra(0.85 + m.percent / 100 * 0.15));
+    R.nombre = `Respaldo_Fotos_AmaDeLlaves_${hoy}.zip`;
+    R.zip = blob; R.ids = reps.map(r => r.id); R.paths = bajadas; R.bytes = bytes;
+    guardarBlob(blob, R.nombre);
+    if (fallas.length) aviso(`${fallas.length} foto(s) no se pudieron descargar: se quedan en el sistema para el próximo respaldo`, true);
+    pintarRespaldoBox();
+  } catch (e) {
+    $('#rs-err').textContent = 'No se pudo preparar el respaldo: ' + errMsg(e);
+    btn.disabled = false; btn.textContent = '⬇ Descargar respaldo';
+  } finally { R.ocupado = false; }
+}
+
+async function liberarEspacio(){
+  if (R.ocupado || !R.zip) return; R.ocupado = true;
+  const btn = $('#rs-liberar'); btn.disabled = true; btn.textContent = 'Liberando espacio…';
+  $('#rs-otra').disabled = $('#rs-cancelar').disabled = true;
+  try {
+    for (let i = 0; i < R.paths.length; i += 100) {
+      $('#rs-paso').textContent = `Borrando fotos del sistema… ${Math.min(i + 100, R.paths.length)} de ${R.paths.length}`;
+      const { error } = await sb.storage.from(BUCKET).remove(R.paths.slice(i, i + 100));
+      if (error) throw error;
+    }
+    const { data:n, error } = await sb.rpc('respaldo_registrar', { p_ids:R.ids, p_bytes:R.bytes, p_archivo:R.nombre });
+    if (error) throw error;
+    aviso(`Listo: se liberaron ${mb(R.bytes)} (${n} fotos). Guarde bien el archivo ${R.nombre}.`);
+    R.zip = null; R.paths = []; R.ids = [];
+    await revisarRespaldo(); pintarRespaldoBox();
+  } catch (e) {
+    aviso('No se pudo terminar: ' + errMsg(e) + '. Puede intentarlo de nuevo.', true);
+    btn.disabled = false; btn.textContent = '✅ Sí, quedó guardado: liberar espacio';
+    $('#rs-otra').disabled = $('#rs-cancelar').disabled = false;
+  } finally { R.ocupado = false; }
 }
 
 async function traerTodo(armar){
@@ -2275,6 +2476,7 @@ if ('serviceWorker' in navigator) {
     if (d.tipo === 'abrir-caso') abrirCasoPush(+d.reporte_id);
     if (d.tipo === 'abrir-vista' && d.vista === 'claves') abrirClavesPush(+d.caja_id || null);
     if (d.tipo === 'abrir-vista' && d.vista === 'ocupacion') abrirOcupPush(d.fecha);
+    if (d.tipo === 'abrir-vista' && d.vista === 'respaldo') { if (S.perfil) irARespaldo(); else S.respPendiente = true; }
     if (d.tipo === 'push' && S.perfil) { cargarNotifs(); cargarActivos(); if (S.vista === 'claves') cargarClaves(true); if (S.vista === 'ocupacion') cargarOcupacion(true); }
   });
 }
@@ -2291,7 +2493,8 @@ function abrirClavesPush(cajaId){
   S.casoPendiente = +q.get('caso') || null;
   S.clavesPendiente = q.has('claves') ? { caja:+q.get('claves') || null } : null;
   S.ocupPendiente = q.has('ocupacion') ? (q.get('ocupacion') || true) : false;
-  if (S.casoPendiente || S.clavesPendiente || S.ocupPendiente) history.replaceState(null, '', location.pathname);
+  S.respPendiente = q.has('respaldo');
+  if (S.casoPendiente || S.clavesPendiente || S.ocupPendiente || S.respPendiente) history.replaceState(null, '', location.pathname);
 })();
 
 /* =====================================================================

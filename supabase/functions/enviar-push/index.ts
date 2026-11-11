@@ -7,6 +7,7 @@
 //   · Avisos de reportes (abren el caso), de "Claves de caja" y de "Ocupación" (abren esa sección).
 //     Las alertas de ingresos (14:00, 14:30, 15:00) se quedan en pantalla hasta tocarlas.
 //     El aviso de claves NUNCA lleva la clave: así no queda a la vista en la pantalla bloqueada.
+//   · Aviso de "Respaldo pendiente" (fotos con más de 6 meses): abre Mantenimiento › Respaldo.
 // =====================================================================
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -75,7 +76,16 @@ Deno.serve(async (req) => {
       const { count } = await admin.from("notificaciones").select("id", { count: "exact", head: true })
         .eq("usuario_id", n.usuario_id).eq("leida", false);
       const lugar = n.propiedad_nombre ? " · " + n.propiedad_nombre : "";
-      const aviso: Aviso = n.tipo === "ocupacion"
+      const aviso: Aviso = n.tipo === "respaldo"
+        ? {
+          title: n.numero_caso || "📦 Respaldo pendiente",
+          body: n.mensaje,
+          tag: "respaldo",
+          url: "./?respaldo=1",                     // abre Mantenimiento › Respaldo
+          vista: "respaldo",
+          badge: count || 1,
+        }
+        : n.tipo === "ocupacion"
         ? {
           title: `${n.numero_caso || "Ocupación"}${lugar}`,
           body: n.mensaje,
