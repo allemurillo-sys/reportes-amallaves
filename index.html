@@ -2591,7 +2591,27 @@ async function mTelegram(){
     </div>
 
     <div class="push-box">
-      <b>5. Cadena de escalamiento</b>
+      <b>5. Horario de avisos</b>
+      <p class="nota-a" style="margin:4px 0 10px">Fuera de este horario Telegram no envía nada: los avisos quedan en espera y salen cuando abre el horario.
+        Si un mensaje menciona a personas de los dos grupos, se usa el horario más corto. Las notificaciones de la app no cambian.</p>
+      <form id="tg-hor">
+        <div class="row-form" style="margin:0">
+          <div style="flex:2;min-width:180px;align-self:center"><b style="font-size:14px">Ama de llaves, Supervisoras y Mucamas</b></div>
+          <div style="flex:1;min-width:110px"><label class="f" style="margin-top:0">Desde</label><input class="inp" type="time" id="tg-ha-i" value="${hhmm(cfg.horario_ama_inicio) || '08:00'}"></div>
+          <div style="flex:1;min-width:110px"><label class="f" style="margin-top:0">Hasta</label><input class="inp" type="time" id="tg-ha-f" value="${hhmm(cfg.horario_ama_fin) || '16:30'}"></div>
+        </div>
+        <div class="row-form" style="margin:8px 0 0">
+          <div style="flex:2;min-width:180px;align-self:center"><b style="font-size:14px">Operaciones y Administración</b></div>
+          <div style="flex:1;min-width:110px"><label class="f" style="margin-top:0">Desde</label><input class="inp" type="time" id="tg-hr-i" value="${hhmm(cfg.horario_resto_inicio) || '08:00'}"></div>
+          <div style="flex:1;min-width:110px"><label class="f" style="margin-top:0">Hasta</label><input class="inp" type="time" id="tg-hr-f" value="${hhmm(cfg.horario_resto_fin) || '21:00'}"></div>
+        </div>
+        <div class="err" id="tg-hor-err"></div>
+        <button type="submit" class="btn sm">Guardar horario</button>
+      </form>
+    </div>
+
+    <div class="push-box">
+      <b>6. Cadena de escalamiento</b>
       <p class="nota-a" style="margin:4px 0 10px">Si nadie toca “Lo vi” a tiempo, se alerta a los roles marcados.</p>
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Si no confirma…</th><th>Se alerta a</th></tr></thead><tbody>
         ${['mucama','supervisora','ama_llaves','operaciones'].map(r => `<tr><td><b>${ROL[r]}</b></td><td>
@@ -2604,7 +2624,7 @@ async function mTelegram(){
     </div>
 
     <div class="push-box">
-      <b>6. Colaboradores conectados</b> <span style="color:var(--muted);font-size:13px">(${vinc} de ${ok.usuarios.length})</span>
+      <b>7. Colaboradores conectados</b> <span style="color:var(--muted);font-size:13px">(${vinc} de ${ok.usuarios.length})</span>
       <p class="nota-a" style="margin:4px 0 10px">Cada persona se conecta desde <b>Mi cuenta → Conectar Telegram</b> en su celular.</p>
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Telegram</th><th></th></tr></thead><tbody>
         ${ok.usuarios.map(u => `<tr><td><b>${esc(u.nombre)}</b></td><td>${ROL[u.rol] || u.rol}</td>
@@ -2660,6 +2680,18 @@ async function mTelegram(){
     }).eq('id', 1);
     if (error) return $('#tg-cfg-err').textContent = errMsg(error);
     aviso('Tiempos guardados'); mTelegram();
+  };
+  $('#tg-hor').onsubmit = async e => {
+    e.preventDefault();
+    const ai = $('#tg-ha-i').value, af = $('#tg-ha-f').value, ri = $('#tg-hr-i').value, rf = $('#tg-hr-f').value;
+    if (!ai || !af || !ri || !rf) return $('#tg-hor-err').textContent = 'Complete las cuatro horas';
+    if (ai >= af || ri >= rf) return $('#tg-hor-err').textContent = 'La hora "Hasta" debe ser después de la hora "Desde"';
+    const { error } = await sb.from('telegram_config').update({
+      horario_ama_inicio:ai, horario_ama_fin:af, horario_resto_inicio:ri, horario_resto_fin:rf,
+      actualizado_en:new Date().toISOString(), actualizado_por:S.perfil.id
+    }).eq('id', 1);
+    if (error) return $('#tg-hor-err').textContent = errMsg(error);
+    aviso('Horario de avisos guardado'); mTelegram();
   };
   $('#tg-esc-guardar').onclick = async () => {
     for (const r of ['mucama','supervisora','ama_llaves','operaciones']) {
